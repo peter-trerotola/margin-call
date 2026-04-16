@@ -11,7 +11,10 @@ vi.mock('mermaid', () => ({
   },
 }));
 
-import { renderMermaidBlocks } from '../../src/panel/mermaid.js';
+import {
+  renderMermaidBlocks,
+  preferredMermaidTheme,
+} from '../../src/panel/mermaid.js';
 
 function setupContainer(html: string) {
   const dom = new JSDOM(`<!DOCTYPE html><div id="root">${html}</div>`);
@@ -111,6 +114,42 @@ describe('renderMermaidBlocks', () => {
     expect(errorEl!.querySelector('details pre')!.textContent).toBe(
       'not valid mermaid'
     );
+  });
+
+  it('picks dark mermaid theme when prefers-color-scheme: dark', () => {
+    const original = window.matchMedia;
+    (window as Window).matchMedia = ((query: string) => ({
+      matches: query.includes('dark'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      onchange: null,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+
+    expect(preferredMermaidTheme()).toBe('dark');
+
+    window.matchMedia = original;
+  });
+
+  it('picks default mermaid theme when prefers-color-scheme is light', () => {
+    const original = window.matchMedia;
+    (window as Window).matchMedia = ((query: string) => ({
+      matches: false,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      addListener: () => {},
+      removeListener: () => {},
+      onchange: null,
+      dispatchEvent: () => false,
+    })) as unknown as typeof window.matchMedia;
+
+    expect(preferredMermaidTheme()).toBe('default');
+
+    window.matchMedia = original;
   });
 
   it('ignores non-mermaid code blocks', async () => {

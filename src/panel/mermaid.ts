@@ -12,6 +12,18 @@ import mermaid from 'mermaid';
 
 let initialized = false;
 
+/** Pick the Mermaid theme based on the user's system color-scheme preference. */
+export function preferredMermaidTheme(): 'default' | 'dark' {
+  if (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-color-scheme: dark)').matches
+  ) {
+    return 'dark';
+  }
+  return 'default';
+}
+
 function ensureInitialized(): void {
   if (initialized) return;
   mermaid.initialize({
@@ -20,7 +32,7 @@ function ensureInitialized(): void {
     // securityLevel 'strict' forbids HTML/script in diagrams (safer for
     // user-supplied content from a PR).
     securityLevel: 'strict',
-    theme: 'default',
+    theme: preferredMermaidTheme(),
   });
   initialized = true;
 }

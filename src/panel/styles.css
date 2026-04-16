@@ -1,3 +1,83 @@
+/*
+ * Margin Call panel page styles.
+ *
+ * Theme tokens are defined as CSS variables and overridden via
+ * prefers-color-scheme so the panel follows the user's system preference.
+ * The bundled github-markdown.css already auto-switches its own theme,
+ * so we only need to handle our own chrome (header, file path bar,
+ * comment UI, diff highlights).
+ */
+
+:root {
+  --mc-bg: #ffffff;
+  --mc-bg-subtle: #f6f8fa;
+  --mc-fg: #1f2328;
+  --mc-fg-muted: #656d76;
+  --mc-border: #d0d7de;
+  --mc-link: #0969da;
+
+  --mc-success-fg: #1a7f37;
+  --mc-success-bg: #dafbe1;
+  --mc-success-border: #1a7f37;
+  --mc-success-tint: rgba(26, 127, 55, 0.06);
+  --mc-success-tint-soft: rgba(26, 127, 55, 0.25);
+
+  --mc-danger-fg: #cf222e;
+  --mc-danger-bg: #ffebe9;
+
+  --mc-btn-primary-bg: #1f883d;
+  --mc-btn-primary-bg-hover: #1a7f37;
+  --mc-btn-primary-fg: #ffffff;
+  --mc-btn-primary-border: rgba(31, 35, 40, 0.15);
+
+  --mc-btn-secondary-bg: #f6f8fa;
+  --mc-btn-secondary-bg-hover: #f3f4f6;
+  --mc-btn-secondary-fg: #24292f;
+  --mc-btn-secondary-border: rgba(31, 35, 40, 0.15);
+
+  --mc-comment-btn-bg: #0969da;
+  --mc-comment-btn-bg-hover: #0860ca;
+  --mc-comment-btn-disabled-bg: #8c959f;
+
+  --mc-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --mc-bg: #0d1117;
+    --mc-bg-subtle: #161b22;
+    --mc-fg: #e6edf3;
+    --mc-fg-muted: #7d8590;
+    --mc-border: #30363d;
+    --mc-link: #2f81f7;
+
+    --mc-success-fg: #3fb950;
+    --mc-success-bg: rgba(46, 160, 67, 0.15);
+    --mc-success-border: #3fb950;
+    --mc-success-tint: rgba(63, 185, 80, 0.08);
+    --mc-success-tint-soft: rgba(63, 185, 80, 0.3);
+
+    --mc-danger-fg: #f85149;
+    --mc-danger-bg: rgba(248, 81, 73, 0.15);
+
+    --mc-btn-primary-bg: #238636;
+    --mc-btn-primary-bg-hover: #2ea043;
+    --mc-btn-primary-fg: #ffffff;
+    --mc-btn-primary-border: rgba(240, 246, 252, 0.1);
+
+    --mc-btn-secondary-bg: #21262d;
+    --mc-btn-secondary-bg-hover: #30363d;
+    --mc-btn-secondary-fg: #c9d1d9;
+    --mc-btn-secondary-border: rgba(240, 246, 252, 0.1);
+
+    --mc-comment-btn-bg: #1f6feb;
+    --mc-comment-btn-bg-hover: #388bfd;
+    --mc-comment-btn-disabled-bg: #484f58;
+
+    --mc-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  }
+}
+
 * {
   margin: 0;
   padding: 0;
@@ -6,8 +86,8 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  color: #1f2328;
-  background: #ffffff;
+  color: var(--mc-fg);
+  background: var(--mc-bg);
 }
 
 #header {
@@ -15,8 +95,8 @@ body {
   align-items: center;
   gap: 12px;
   padding: 12px 24px;
-  border-bottom: 1px solid #d0d7de;
-  background: #f6f8fa;
+  border-bottom: 1px solid var(--mc-border);
+  background: var(--mc-bg-subtle);
 }
 
 #header h1 {
@@ -27,7 +107,7 @@ body {
 
 #pr-title {
   font-size: 14px;
-  color: #656d76;
+  color: var(--mc-fg-muted);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -36,7 +116,7 @@ body {
 #pr-link {
   margin-left: auto;
   font-size: 12px;
-  color: #0969da;
+  color: var(--mc-link);
   text-decoration: none;
   white-space: nowrap;
 }
@@ -49,8 +129,9 @@ body {
   padding: 8px 24px;
   font-size: 13px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  color: #656d76;
-  border-bottom: 1px solid #d0d7de;
+  color: var(--mc-fg-muted);
+  border-bottom: 1px solid var(--mc-border);
+  background: var(--mc-bg);
 }
 
 .diff-legend {
@@ -69,17 +150,17 @@ body {
 }
 
 .diff-stat.added {
-  color: #1a7f37;
-  background: #dafbe1;
+  color: var(--mc-success-fg);
+  background: var(--mc-success-bg);
 }
 
 .diff-stat.removed {
-  color: #cf222e;
-  background: #ffebe9;
+  color: var(--mc-danger-fg);
+  background: var(--mc-danger-bg);
 }
 
 .diff-hint {
-  color: #656d76;
+  color: var(--mc-fg-muted);
   font-style: italic;
 }
 
@@ -87,6 +168,8 @@ body {
   max-width: 980px;
   margin: 0 auto;
   padding: 32px;
+  background: var(--mc-bg);
+  color: var(--mc-fg);
 }
 
 @media (max-width: 767px) {
@@ -99,8 +182,8 @@ body {
 .markdown-body .mermaid-diagram {
   margin: 16px 0;
   padding: 16px;
-  background: #f6f8fa;
-  border: 1px solid #d0d7de;
+  background: var(--mc-bg-subtle);
+  border: 1px solid var(--mc-border);
   border-radius: 6px;
   overflow-x: auto;
   text-align: center;
@@ -112,19 +195,19 @@ body {
 }
 
 .markdown-body .mermaid-diagram.mermaid-error {
-  background: #ffebe9;
-  border-color: #cf222e;
+  background: var(--mc-danger-bg);
+  border-color: var(--mc-danger-fg);
   text-align: left;
 }
 
 .markdown-body .mermaid-error .mermaid-error-header {
-  color: #cf222e;
+  color: var(--mc-danger-fg);
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .markdown-body .mermaid-error .mermaid-error-body {
-  color: #cf222e;
+  color: var(--mc-danger-fg);
   background: transparent;
   padding: 0;
   margin: 0 0 8px;
@@ -134,32 +217,24 @@ body {
 .markdown-body .mc-has-additions {
   position: relative;
   padding-left: 12px;
-  border-left: 3px solid #1a7f37;
+  border-left: 3px solid var(--mc-success-border);
   background: linear-gradient(
     to right,
-    rgba(26, 127, 55, 0.06),
+    var(--mc-success-tint),
     transparent 60%
   );
   border-radius: 0 4px 4px 0;
 }
 
 .markdown-body .mc-commentable:not(.mc-has-additions) {
-  /* Commentable context lines — subtle marker */
   position: relative;
   padding-left: 12px;
-  border-left: 3px solid rgba(26, 127, 55, 0.25);
+  border-left: 3px solid var(--mc-success-tint-soft);
   border-radius: 0 4px 4px 0;
 }
 
-/* Cursor hint when hovering over commentable text */
 .markdown-body .mc-commentable {
   cursor: text;
-}
-
-.markdown-body :not(.mc-commentable) {
-  /* Subtle dim for non-commentable elements so the diff stands out */
-  /* (No styling needed — just leaving the default. The commentable
-     elements stand out enough on their own.) */
 }
 
 /* Comment UI */
@@ -168,21 +243,21 @@ body {
   padding: 4px 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
-  background: #0969da;
+  color: var(--mc-btn-primary-fg);
+  background: var(--mc-comment-btn-bg);
   border: none;
   border-radius: 6px;
   cursor: pointer;
   z-index: 1000;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--mc-shadow);
 }
 
 .comment-float-btn:hover {
-  background: #0860ca;
+  background: var(--mc-comment-btn-bg-hover);
 }
 
 .comment-float-btn.disabled {
-  background: #8c959f;
+  background: var(--mc-comment-btn-disabled-bg);
   cursor: not-allowed;
 }
 
@@ -190,8 +265,8 @@ body {
 .comment-form {
   margin: 12px 0;
   padding: 12px;
-  background: #f6f8fa;
-  border: 1px solid #d0d7de;
+  background: var(--mc-bg-subtle);
+  border: 1px solid var(--mc-border);
   border-radius: 6px;
 }
 
@@ -201,7 +276,9 @@ body {
   padding: 8px;
   font-size: 13px;
   font-family: inherit;
-  border: 1px solid #d0d7de;
+  color: var(--mc-fg);
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
   border-radius: 6px;
   resize: vertical;
 }
@@ -217,34 +294,43 @@ body {
   padding: 5px 16px;
   font-size: 12px;
   font-weight: 500;
-  color: #ffffff;
-  background: #238636;
-  border: 1px solid rgba(27, 31, 36, 0.15);
+  color: var(--mc-btn-primary-fg);
+  background: var(--mc-btn-primary-bg);
+  border: 1px solid var(--mc-btn-primary-border);
   border-radius: 6px;
   cursor: pointer;
+}
+
+.comment-form .btn-submit:hover {
+  background: var(--mc-btn-primary-bg-hover);
 }
 
 .comment-form .btn-cancel {
   padding: 5px 16px;
   font-size: 12px;
-  color: #24292f;
-  background: #f6f8fa;
-  border: 1px solid rgba(27, 31, 36, 0.15);
+  color: var(--mc-btn-secondary-fg);
+  background: var(--mc-btn-secondary-bg);
+  border: 1px solid var(--mc-btn-secondary-border);
   border-radius: 6px;
   cursor: pointer;
+}
+
+.comment-form .btn-cancel:hover {
+  background: var(--mc-btn-secondary-bg-hover);
 }
 
 /* Comment cards */
 .comment-thread {
   margin: 8px 0;
-  border: 1px solid #d0d7de;
+  border: 1px solid var(--mc-border);
   border-radius: 6px;
   overflow: hidden;
+  background: var(--mc-bg);
 }
 
 .comment-card {
   padding: 8px 12px;
-  border-bottom: 1px solid #d0d7de;
+  border-bottom: 1px solid var(--mc-border);
 }
 
 .comment-card:last-child {
@@ -271,7 +357,7 @@ body {
 
 .comment-date {
   font-size: 12px;
-  color: #656d76;
+  color: var(--mc-fg-muted);
 }
 
 .comment-body {
@@ -285,27 +371,35 @@ body {
   width: 100%;
   padding: 6px;
   font-size: 12px;
-  color: #0969da;
-  background: #f6f8fa;
+  color: var(--mc-link);
+  background: var(--mc-bg-subtle);
   border: none;
-  border-top: 1px solid #d0d7de;
+  border-top: 1px solid var(--mc-border);
   cursor: pointer;
 }
 
 .reply-btn:hover {
-  background: #eef2f6;
+  background: var(--mc-btn-secondary-bg-hover);
 }
 
 /* Error state */
 .error-state {
   padding: 24px;
   text-align: center;
-  color: #cf222e;
+  color: var(--mc-danger-fg);
 }
 
 /* Loading */
 .loading {
   padding: 24px;
   text-align: center;
-  color: #656d76;
+  color: var(--mc-fg-muted);
+}
+
+.error-msg {
+  color: var(--mc-danger-fg);
+  font-size: 13px;
+  padding: 8px;
+  background: var(--mc-danger-bg);
+  border-radius: 6px;
 }
