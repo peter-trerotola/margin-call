@@ -21,22 +21,41 @@ The extension injects a "Review Preview" button next to each markdown file in th
 
 ## Quick Start
 
-Prerequisites: Docker, Make, Chrome (manual testing)
+Prerequisites: Docker, Make, Chrome (for manual testing).
 
 ```bash
-# Build the Docker container and compile the extension
+# Build the Docker container, then compile the extension to dist/
 make docker-build && make build
 
 # Run all tests
 make test
-
-# Load the extension in Chrome
-# 1. Open chrome://extensions
-# 2. Enable "Developer mode" (toggle in top-right)
-# 3. Click "Load unpacked"
-# 4. Select the dist/ directory in this project
-# 5. See your extension appear with ID (you'll need this for OAuth setup)
 ```
+
+### Loading the extension in Chrome
+
+1. Open `chrome://extensions`
+2. Enable **Developer mode** (toggle in the top-right corner)
+3. Click **Load unpacked**
+4. Select the `dist/` directory in this project (not the project root — point at `dist/`)
+5. The Margin Call icon appears in your extensions toolbar
+6. Click the icon → **Sign in with GitHub** → authorize on the tab that opens
+7. Open any PR with a `.md` file → "Files changed" tab → click **Review Preview** on a markdown file
+
+After editing source code, run `make build` and click the reload button on the extension card in `chrome://extensions`.
+
+### Troubleshooting
+
+**`Failed to load extension: Value 'key' is missing or invalid.`**
+The `key` field in `manifest.json` must either be a valid Chrome extension public key or be omitted entirely — an empty string fails validation. If you see this after editing the manifest, ensure there is no `"key": ""` line. `make build` produces a valid manifest; if you have stale build output, run `make clean && make build`.
+
+**`Could not load manifest.`**
+Make sure you selected the `dist/` directory, not the project root. The repo root has `package.json` and other files, but the actual extension lives in `dist/` after `make build`.
+
+**Sign-in opens a tab but never completes**
+The popup polls every 2 seconds while it's open. If you click outside the popup it closes — reopen it and the polling resumes. The Device Flow code itself stays valid for 15 minutes; click **Sign in** again if it expires.
+
+**No "Review Preview" button on a PR's markdown files**
+Buttons only inject on the "Files changed" tab (`/pull/<number>/files`), not the conversation tab. Also confirm the file extension is `.md`, `.mdx`, or `.markdown`. After installing the extension, you may need to refresh PR pages that were already open.
 
 ## How It Works
 
