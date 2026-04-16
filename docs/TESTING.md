@@ -259,12 +259,13 @@ export const mockChrome = {
       remove: vi.fn()
     }
   },
-  identity: {
-    getRedirectURL: (path: string) => `https://test-id.chromiumapp.org/${path}`,
-    launchWebAuthFlow: vi.fn()
-  },
   tabs: {
+    // Device flow opens the verification tab via chrome.tabs.create
     create: vi.fn()
+  },
+  runtime: {
+    onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+    sendMessage: vi.fn()
   }
 };
 

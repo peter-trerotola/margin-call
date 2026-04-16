@@ -20,6 +20,17 @@
       <button id="sign-in-btn" class="btn btn-primary">Sign in with GitHub</button>
     </div>
 
+    <div id="pending" class="state" hidden>
+      <p>A tab opened for you to authorize this extension on GitHub.</p>
+      <p class="hint">If your code isn't pre-filled, enter:</p>
+      <div class="device-code" id="device-code"></div>
+      <p class="hint">
+        Or open <a id="verification-link" href="#" target="_blank">the verification page</a> manually.
+      </p>
+      <p class="hint waiting" id="waiting">Waiting for authorization...</p>
+      <button id="cancel-auth-btn" class="btn btn-secondary">Cancel</button>
+    </div>
+
     <div id="signed-in" class="state" hidden>
       <div class="user-info">
         <img id="user-avatar" class="avatar" src="" alt="avatar">

@@ -112,7 +112,7 @@ After running `make build`:
 
 ## GitHub OAuth App Setup
 
-Margin Call uses GitHub OAuth 2.0 to obtain a user's access token. This allows the extension to post comments on their behalf without storing their password.
+Margin Call uses GitHub's **OAuth Device Flow** to obtain a user's access token. The device flow requires only the public `client_id` — no `client_secret` is bundled into the extension. This is important because Chrome extensions are distributed as publicly downloadable `.zip` files; any bundled secret would leak to anyone who unpacks the extension.
 
 ### 1. Create an OAuth App
 
@@ -120,58 +120,49 @@ Margin Call uses GitHub OAuth 2.0 to obtain a user's access token. This allows t
 2. Click **New OAuth App**
 3. Fill out the form:
    - **Application name:** Margin Call
-   - **Homepage URL:** https://github.com
-   - **Authorization callback URL:** `https://<EXTENSION_ID>.chromiumapp.org/callback` (see step 5 below)
+   - **Homepage URL:** https://github.com/peter-trerotola/margin-call
+   - **Authorization callback URL:** https://github.com (any valid URL — device flow does not use this, but GitHub requires a value)
+4. Enable **Device Flow** under the OAuth App settings
+5. You'll get a **Client ID** — copy it
 
-4. You'll get:
-   - **Client ID** — a public identifier
-   - **Client Secret** — keep this private
+You do not need the Client Secret. Leave it blank or ignore it.
 
-### 2. Find Your Extension ID
+### 2. Add the Client ID to the Extension
 
-If you haven't loaded the extension yet:
-1. Build: `make build`
-2. Load unpacked in Chrome (see "Loading the Extension" above)
-3. The extension ID appears on `chrome://extensions`
-
-### 3. Update the OAuth App's Callback
-
-Go back to your GitHub OAuth App settings and update the **Authorization callback URL** to:
-
-```
-https://<YOUR_EXTENSION_ID>.chromiumapp.org/callback
-```
-
-For example, if your extension ID is `akjcnfeihkjfkmebjhdcdkhjefkafkjh`, use:
-
-```
-https://akjcnfeihkjfkmebjhdcdkhjefkafkjh.chromiumapp.org/callback
-```
-
-### 4. Add Credentials to the Extension
-
-Edit `src/background/index.ts` and replace the placeholder values:
+Edit `src/background/index.ts` and replace the placeholder value:
 
 ```typescript
-// TODO: Replace with your GitHub OAuth App credentials after first extension load.
+// Replace with your GitHub OAuth App's client_id. No secret needed for
+// device flow — client_id is public and safe to commit.
 const CLIENT_ID = '__GITHUB_CLIENT_ID__';
-const CLIENT_SECRET = '__GITHUB_CLIENT_SECRET__';
 ```
 
-With your actual values:
+With your actual client ID:
 
 ```typescript
 const CLIENT_ID = 'Iv1.abcd1234efgh5678ijkl';
-const CLIENT_SECRET = 'ghp_abcd1234efgh5678ijkl9876mnopqrstu';
 ```
 
-### 5. Rebuild and Test
+The client ID is public — it identifies your OAuth App but does not authenticate on its behalf. It is safe to commit to source control.
+
+### 3. Rebuild and Test
 
 ```bash
 make build
 ```
 
-Reload the extension in Chrome (`chrome://extensions` → refresh button). When you next click the Margin Call extension popup, you should be able to authenticate with GitHub.
+Reload the extension in Chrome (`chrome://extensions` → refresh button). Click the Margin Call extension icon:
+
+1. Click **Sign in with GitHub**
+2. A new tab opens on `https://github.com/login/device` with the verification code pre-filled
+3. Authorize the app
+4. Return to the popup — it will show your authenticated GitHub account
+
+### Why Device Flow?
+
+GitHub's standard web OAuth flow requires a `client_secret` to exchange the authorization code for an access token. In a Chrome extension, this secret would be bundled into the published `.zip` file and leak to anyone who inspects it. GitHub's `redirect_uri` validation limits the damage, but the secret is still publicly exposed.
+
+Device Flow sidesteps this entirely: the user enters a short code on github.com, GitHub completes the authorization without any secret exchange, and the extension just needs to poll for the resulting token. The extra user step is a small price for not leaking credentials.
 
 ## Makefile Targets
 
