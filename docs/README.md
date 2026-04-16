@@ -59,39 +59,54 @@ Buttons only inject on the "Files changed" tab (`/pull/<number>/files`), not the
 
 ## How It Works
 
-Margin Call has three core components running in your browser:
+Margin Call has four components, all running in the browser:
 
+```mermaid
+flowchart TB
+  subgraph Extension["Margin Call extension"]
+    BG["Background service worker<br/>(OAuth + tab routing)"]
+    POP["Popup<br/>(sign in / out)"]
+    CS["Content script<br/>(injected on PR pages)"]
+    PANEL["Panel page<br/>(markdown render + commenting)"]
+  end
+
+  GH[("GitHub.com")]
+  API[("api.github.com")]
+
+  POP <-->|chrome.runtime msgs| BG
+  CS  <-->|chrome.runtime msgs| BG
+  CS  -.observes.-> GH
+  CS  -->|opens panel tab| PANEL
+  BG  -->|Device Flow| GH
+  PANEL -->|fetch PR + post comments| API
+  PANEL -.reads token from.-> BG
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                                                             │
-│  Background Service Worker (OAuth Manager)                  │
-│  └─ Handles GitHub OAuth 2.0 authentication                 │
-│  └─ Stores access token securely                            │
-│  └─ Manages session state                                   │
-│                                                             │
-└────────┬────────────────────────────────────────────────────┘
-         │
-         │ Chrome Message Passing
-         │
-    ┌────┴──────┬──────────────────────────────────────────┐
-    │            │                                          │
-┌───▼────────┐  │  ┌──────────────────────────────────────┐│
-│ Popup      │  │  │ Content Script (GitHub PR Page)       ││
-│ (Auth UI)  │  │  │ └─ Detects markdown files             ││
-└───────────┘  │  │ └─ Injects "Review Preview" buttons   ││
-               │  │ └─ Launches panel for each file        ││
-               │  └──────────────────────────────────────────┘
-               │
-         ┌─────▼──────────────────────────────────────────────┐
-         │                                                     │
-         │  Panel Page (Markdown Renderer + Comments UI)      │
-         │  └─ Fetches PR file diff from GitHub API           │
-         │  └─ Renders markdown with source line mapping      │
-         │  └─ Maps user text selection to line ranges        │
-         │  └─ Validates selection against diff               │
-         │  └─ Posts comments via GitHub PR Review API        │
-         │                                                     │
-         └─────────────────────────────────────────────────────┘
+
+The Device Flow auth (no `client_secret` to leak) looks like this:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as User
+  participant P as Popup
+  participant BG as Background SW
+  participant GH as github.com
+  participant API as api.github.com
+
+  U->>P: Click "Sign in"
+  P->>BG: startAuth
+  BG->>GH: POST /login/device/code (client_id)
+  GH-->>BG: device_code, user_code, verification_uri
+  BG->>U: Open verification tab (code pre-filled)
+  loop until token or expiry
+    BG->>GH: POST /login/oauth/access_token (device_code)
+    GH-->>BG: authorization_pending
+  end
+  U->>GH: Authorize app
+  GH-->>BG: access_token
+  BG->>API: GET /user
+  API-->>BG: { login, avatar_url }
+  BG->>P: status: authenticated
 ```
 
 No server infrastructure. No external API calls. Everything runs in your browser, authenticated via your own GitHub OAuth token.
