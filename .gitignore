@@ -1,0 +1,6 @@
+node_modules/
+dist/
+margin-call.zip
+.env
+*.log
+coverage/
