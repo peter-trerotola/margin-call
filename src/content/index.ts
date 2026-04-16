@@ -119,10 +119,75 @@ function findActionBar(container: Element): Element {
   );
 }
 
+/**
+ * Diagnostic: dump info about candidate selectors and where the
+ * `docs/README.md` (or any visible markdown file path) lives in the DOM.
+ * Runs once per URL change and is cheap. Helps debug DOM mismatches
+ * when buttons fail to inject.
+ */
+function logDomDiagnostic(): void {
+  const selectors = [
+    'copilot-diff-entry',
+    '[data-tagsearch-path]',
+    '[data-details-container-group="file"]',
+    '.file',
+    '[data-testid="file-row"]',
+    '[data-testid*="file"]',
+    '[role="region"]',
+  ];
+  const counts = selectors.map((s) => ({
+    selector: s,
+    count: document.querySelectorAll(s).length,
+  }));
+  console.log(`${LOG_PREFIX} selector counts:`, counts);
+
+  // Find any element whose text is a path ending in .md/.mdx/.markdown
+  const all = [...document.querySelectorAll('*')];
+  const mdLeaves = all.filter((el) => {
+    const txt = el.textContent?.trim() ?? '';
+    return (
+      el.children.length === 0 &&
+      /\.(md|mdx|markdown)$/i.test(txt) &&
+      txt.length < 200
+    );
+  });
+  console.log(
+    `${LOG_PREFIX} found ${mdLeaves.length} leaf element(s) whose text is a markdown path`
+  );
+
+  for (const leaf of mdLeaves.slice(0, 3)) {
+    const chain: Array<Record<string, string>> = [];
+    let cur: Element | null = leaf;
+    for (let i = 0; i < 8 && cur; i++) {
+      chain.push({
+        tag: cur.tagName,
+        cls: cur.className?.toString?.() || '',
+        testid: cur.getAttribute('data-testid') || '',
+        component: cur.getAttribute('data-component') || '',
+        tagsearchPath: cur.getAttribute('data-tagsearch-path') || '',
+      });
+      cur = cur.parentElement;
+    }
+    console.log(
+      `${LOG_PREFIX} ancestor chain for "${leaf.textContent?.trim()}":`,
+      chain
+    );
+  }
+}
+
+let diagnosticLogged = '';
+
 /** Inject buttons into all visible markdown file headers. */
 function injectButtons(): void {
   const prInfo = parsePrUrl(window.location.href);
   if (!prInfo) return;
+
+  // Log DOM diagnostic once per URL — invaluable for debugging selector mismatches.
+  if (diagnosticLogged !== window.location.href) {
+    diagnosticLogged = window.location.href;
+    // Defer slightly so React/Turbo has time to render
+    setTimeout(logDomDiagnostic, 1500);
+  }
 
   const containers = findFileContainers();
   if (containers.length === 0) {
