@@ -93,14 +93,29 @@ function createReviewButton(
   return btn;
 }
 
+interface FileContainerMatch {
+  container: Element;
+  /** The path extracted when we matched this container, or null if it has to be re-derived via extractFilePath. */
+  knownPath: string | null;
+}
+
 /**
- * Find all file containers in the diff view. GitHub has used several DOM
- * shapes over the years and across views (split, unified, rich-diff). Try
- * the most-specific selectors first and fall back to broader ones.
+ * Find all file containers in the diff view. Two strategies:
+ *
+ * 1. Known selectors: GitHub's stable (current + legacy) DOM markers.
+ *    When GitHub ships a new diff view shape, this list goes stale.
+ *
+ * 2. Leaf-walk fallback: find every leaf element whose visible text looks
+ *    like a markdown file path, then walk up to the nearest ancestor that
+ *    represents a "file row" (substantial height + contains other content
+ *    beyond the path). This is resilient to class-name changes because it
+ *    only looks at DOM shape, not specific classes.
+ *
+ * Known selectors run first; the fallback only fires if they produced nothing.
  */
-function findFileContainers(): Element[] {
+function findFileContainers(): FileContainerMatch[] {
   const selectorGroups = [
-    // New ""Preview"" diff view (React, CSS Modules with hashed class names)
+    // New "Preview" diff view (React, CSS Modules with hashed class names)
     '[class*="PullRequestDiffsList-module__diffEntry"]',
     // Classic file wrapper with path-as-attribute
     '[data-tagsearch-path]',
@@ -111,16 +126,111 @@ function findFileContainers(): Element[] {
     '.file',
   ];
   const seen = new Set<Element>();
-  const containers: Element[] = [];
+  const matches: FileContainerMatch[] = [];
   for (const sel of selectorGroups) {
     for (const el of document.querySelectorAll(sel)) {
       if (!seen.has(el)) {
         seen.add(el);
-        containers.push(el);
+        matches.push({ container: el, knownPath: null });
       }
     }
   }
-  return containers;
+
+  if (matches.length > 0) return matches;
+
+  // Fallback: find markdown-looking leaf elements and walk up to the
+  // nearest "file row" ancestor.
+  const mdLeaves = findMarkdownPathLeaves();
+  for (const { leaf, path } of mdLeaves) {
+    const container = walkToContainer(leaf);
+    if (container && !seen.has(container)) {
+      seen.add(container);
+      matches.push({ container, knownPath: path });
+    }
+  }
+
+  return matches;
+}
+
+interface MarkdownLeaf {
+  leaf: Element;
+  path: string;
+}
+
+/**
+ * Find every leaf element (no children) whose visible text looks like a
+ * markdown file path. Returns the leaf + extracted path.
+ *
+ * We accept two shapes of leaf text:
+ *   - "Path/To/File.md" — bare filename (classic diff view)
+ *   - "Expand all lines: Path/To/File.md" — tooltip content on the
+ *     new Preview view (leaf is usually a hidden tooltip span)
+ */
+function findMarkdownPathLeaves(): MarkdownLeaf[] {
+  const MD_EXT = /\.(md|mdx|markdown)$/i;
+  const EXPAND = /^Expand all lines:\s*(.+\.(?:md|mdx|markdown))$/i;
+  const results: MarkdownLeaf[] = [];
+  const seenPaths = new Set<string>();
+
+  for (const el of document.querySelectorAll<HTMLElement>(
+    'span, a, div, strong'
+  )) {
+    if (el.children.length > 0) continue;
+    const txt = (el.textContent ?? '').trim();
+    if (!txt || txt.length > 300) continue;
+
+    let path: string | null = null;
+    const expandMatch = txt.match(EXPAND);
+    if (expandMatch) {
+      path = expandMatch[1].trim();
+    } else if (MD_EXT.test(txt) && !txt.includes(' ') && !txt.includes('\n')) {
+      // Bare path — no whitespace, ends in a markdown extension
+      path = txt;
+    }
+    if (!path) continue;
+
+    if (seenPaths.has(path)) continue;
+    seenPaths.add(path);
+    results.push({ leaf: el, path });
+  }
+  return results;
+}
+
+/**
+ * From a markdown-path leaf, walk up to the nearest ancestor that looks
+ * like a "file row" container. The heuristic: substantial block-level
+ * element (>= 40px tall) whose text content is materially larger than
+ * the leaf's text, indicating it wraps the filename AND other file
+ * content (diff stats, the diff body, etc.).
+ */
+function walkToContainer(leaf: Element): Element | null {
+  const leafText = (leaf.textContent ?? '').trim();
+  const minTextLen = Math.max(leafText.length * 3, 40);
+
+  let cur: Element | null = leaf.parentElement;
+  for (let i = 0; i < 10 && cur; i++) {
+    // Avoid picking up huge ancestors like <main>, <body>, <html>
+    if (
+      cur === document.body ||
+      cur === document.documentElement ||
+      cur.tagName === 'MAIN'
+    ) {
+      return null;
+    }
+    const rect = cur.getBoundingClientRect?.();
+    const textLen = (cur.textContent ?? '').trim().length;
+    if (
+      rect &&
+      rect.height >= 40 &&
+      textLen >= minTextLen &&
+      // Don't blow past clearly "page-wide" ancestors
+      rect.height < Math.max(window.innerHeight * 4, 2000)
+    ) {
+      return cur;
+    }
+    cur = cur.parentElement;
+  }
+  return null;
 }
 
 /**
@@ -129,9 +239,10 @@ function findFileContainers(): Element[] {
  */
 function findActionBar(container: Element): Element {
   return (
-    // New ""Preview"" diff view: file header is the prominent bar with
+    // New "Preview" diff view: file header is the prominent bar with
     // the path + actions. Inject the button at the start of it.
     container.querySelector('[class*="DiffFileHeader-module__diff-file-header"]') ??
+    container.querySelector('[class*="file-header"]') ??
     container.querySelector('.file-actions') ??
     container.querySelector('.js-file-header-dropdown') ??
     container.querySelector('[data-component="PR_FileActions"]') ??
@@ -210,27 +321,33 @@ function injectButtons(): void {
     setTimeout(logDomDiagnostic, 1500);
   }
 
-  const containers = findFileContainers();
-  if (containers.length === 0) {
+  const matches = findFileContainers();
+  if (matches.length === 0) {
     return;
   }
 
   let injected = 0;
   let skippedExisting = 0;
   let skippedNonMarkdown = 0;
+  let usedFallback = false;
 
-  for (const container of containers) {
+  for (const { container, knownPath } of matches) {
     if (container.querySelector(`[${BUTTON_ATTR}]`)) {
       skippedExisting++;
       continue;
     }
 
-    const filePath = extractFilePath(container);
+    const filePath = knownPath ?? extractFilePath(container);
     if (!filePath) continue;
 
     if (!isMarkdownFile(filePath)) {
       skippedNonMarkdown++;
       continue;
+    }
+
+    if (knownPath !== null) {
+      // Container came from the leaf-walk fallback, not a known selector
+      usedFallback = true;
     }
 
     const btn = createReviewButton(
@@ -246,13 +363,16 @@ function injectButtons(): void {
   }
 
   if (injected > 0) {
+    const suffix = usedFallback
+      ? ' [fallback: ancestor-walk — known selectors matched nothing]'
+      : '';
     console.log(
       `${LOG_PREFIX} injected ${injected} Review Preview button(s) ` +
-        `(${skippedExisting} already present, ${skippedNonMarkdown} non-markdown files skipped)`
+        `(${skippedExisting} already present, ${skippedNonMarkdown} non-markdown files skipped)${suffix}`
     );
-  } else if (containers.length > 0) {
+  } else if (matches.length > 0) {
     console.debug(
-      `${LOG_PREFIX} no markdown files found among ${containers.length} file container(s)`
+      `${LOG_PREFIX} no markdown files found among ${matches.length} file container(s)`
     );
   }
 }

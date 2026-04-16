@@ -157,3 +157,29 @@ describe('button injection idempotency', () => {
     expect(hasButton).not.toBeNull();
   });
 });
+
+describe('extractFilePath from tooltip-only file headers', () => {
+  // When GitHub ships a diff view shape where the full path only appears
+  // in the "Expand all lines: <path>" tooltip text, extractFilePath must
+  // pull it from there. This is the current Preview view's behavior.
+  it('pulls the path from the Expand-all-lines tooltip on a minimal container', () => {
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<div class="wrap">' +
+      '  <span class="tooltip">Expand all lines: docs/deep/v3-notes.md</span>' +
+      '  <div>Some other header content</div>' +
+      '</div>';
+
+    expect(extractFilePath(container)).toBe('docs/deep/v3-notes.md');
+  });
+
+  it('does not match tooltip text that is not a markdown path', () => {
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<span class="tooltip">Expand all lines: src/app.ts</span>';
+    // The tooltip contains non-markdown path — extractFilePath still returns
+    // it (the markdown check is separate via isMarkdownFile). But the raw
+    // extractor has to pick it up.
+    expect(extractFilePath(container)).toBe('src/app.ts');
+  });
+});
