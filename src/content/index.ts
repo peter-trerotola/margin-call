@@ -19,18 +19,29 @@ export function parsePrUrl(
   return { owner: match[1], repo: match[2], pull: parseInt(match[3], 10) };
 }
 
-/** Extract the file path from a GitHub file container element. */
+/** Path-token regex shared by extractFilePath and findMarkdownPathLeaves. */
+const PATH_TOKEN_RE =
+  /(?:^|[\s/="<>])([\w.-]+(?:\/[\w.-]+)*\.(?:md|mdx|markdown))(?:[\s"<>]|$)/i;
+
+/**
+ * Extract the file path from a GitHub file container element. Tries
+ * specific GitHub conventions first, then falls back to scanning ALL
+ * descendant attributes and leaf text for any markdown-path token.
+ *
+ * The fallback ensures we still get a usable path when GitHub ships a
+ * new diff-view DOM shape — as long as the path exists *somewhere* in
+ * the container's text or attributes (which it always does, in some
+ * tooltip, aria-label, link href, or label).
+ */
 export function extractFilePath(fileHeader: Element): string | null {
   // Classic GitHub: data-tagsearch-path attribute on the wrapper
   const pathAttr = fileHeader.getAttribute('data-tagsearch-path');
   if (pathAttr) return pathAttr;
 
-  // New ""Preview"" diff view: the only place the FULL path appears is the
-  // ""Expand all lines: <path>"" tooltip text. The visible text shows only
-  // the basename. Search descendants for that pattern.
+  // New "Preview" diff view: "Expand all lines: <path>" tooltip text
   const candidates = fileHeader.querySelectorAll('span, div');
   for (const el of candidates) {
-    if (el.children.length > 0) continue; // leaf nodes only
+    if (el.children.length > 0) continue;
     const txt = el.textContent?.trim() ?? '';
     const m = txt.match(/^Expand all lines:\s*(.+)$/);
     if (m && m[1]) return m[1];
@@ -50,9 +61,63 @@ export function extractFilePath(fileHeader: Element): string | null {
     if (dataPath) return dataPath;
     const title = pathEl.getAttribute('title');
     if (title) return title;
-    return pathEl.textContent?.trim() ?? null;
+    const txt = pathEl.textContent?.trim();
+    if (txt && PATH_TOKEN_RE.test(' ' + txt)) {
+      return txt.match(PATH_TOKEN_RE)?.[1] ?? txt;
+    }
   }
-  return null;
+
+  // Last-resort scan: any descendant attribute (title, aria-label, data-*,
+  // href) or leaf text containing a markdown-path-shaped token. URL-style
+  // GitHub prefixes are stripped from every candidate so we always end up
+  // with the repo-relative path the API expects.
+  const candidatesFound: string[] = [];
+  const interestingAttrs = [
+    'title',
+    'aria-label',
+    'data-path',
+    'data-tagsearch-path',
+    'href',
+    'data-tooltip-content',
+  ];
+  const allEls = fileHeader.querySelectorAll<HTMLElement>('*');
+  for (const el of allEls) {
+    for (const attr of interestingAttrs) {
+      const val = el.getAttribute(attr);
+      if (!val) continue;
+      const m = val.match(PATH_TOKEN_RE);
+      if (m) candidatesFound.push(stripGitHubUrlPrefix(m[1]));
+    }
+    if (el.children.length === 0) {
+      const txt = el.textContent?.trim() ?? '';
+      if (txt && txt.length <= 200) {
+        const m = (' ' + txt).match(PATH_TOKEN_RE);
+        if (m) candidatesFound.push(stripGitHubUrlPrefix(m[1]));
+      }
+    }
+  }
+
+  if (candidatesFound.length === 0) return null;
+
+  // Prefer the path with the most directory components (most specific) —
+  // "docs/foo.md" is preferred over a bare "foo.md" when both are present.
+  candidatesFound.sort(
+    (a, b) =>
+      b.split('/').length - a.split('/').length || b.length - a.length
+  );
+  return candidatesFound[0];
+}
+
+/**
+ * GitHub repo URLs embed a path after a `<owner>/<repo>/(blob|raw|tree)/<ref>/`
+ * prefix. This strips that prefix so we end up with the repo-relative path
+ * the GitHub API expects.
+ */
+function stripGitHubUrlPrefix(raw: string): string {
+  return raw.replace(
+    /^[\w.-]+\/[\w.-]+\/(?:blob|raw|tree)\/[\w.-]+\//,
+    ''
+  );
 }
 
 /** Check if a file path is a markdown file. */
