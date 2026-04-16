@@ -1,4 +1,4 @@
-.PHONY: docker-build install build test test-unit test-int test-e2e test-coverage lint clean package shell
+.PHONY: docker-build install build test test-unit test-int test-e2e test-coverage lint clean package shell icons
 
 # Build the Docker image
 docker-build:
@@ -43,6 +43,10 @@ package: build
 # Remove build artifacts
 clean:
 	rm -rf dist margin-call.zip
+
+# Render icons/icon.svg → icon16/48/128.png (uses Chromium in the dev container)
+icons:
+	docker compose run --rm dev node scripts/render-icons.mjs
 
 # Open a shell inside the container for debugging
 shell:

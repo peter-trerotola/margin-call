@@ -64,9 +64,12 @@ if (existsSync(ghCssPath)) {
   copyFileSync(ghCssPath, `${outdir}/panel/github-markdown.css`);
 }
 
-// Copy icons
+// Copy icons (PNGs only — the SVG source isn't needed in the published bundle)
 if (existsSync('icons')) {
-  cpSync('icons', `${outdir}/icons`, { recursive: true });
+  cpSync('icons', `${outdir}/icons`, {
+    recursive: true,
+    filter: (src) => !src.endsWith('.svg'),
+  });
 }
 
 console.log('Build complete → dist/');

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Margin Call extension icon.
+  Concept: a green left "margin" bar (echoing the diff indicator the
+  extension paints on changed sections) with a speech bubble hanging off
+  it (the "call" — the comment). Background uses GitHub's dark canvas so
+  the green pops, with subtle rounding for the modern Chrome icon look.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <!-- rounded square background -->
+  <rect width="128" height="128" rx="24" fill="#0d1117"/>
+
+  <!-- the green "margin" bar — same green as the diff indicator -->
+  <rect x="22" y="20" width="10" height="88" rx="3" fill="#3fb950"/>
+
+  <!-- speech bubble body -->
+  <path d="
+    M 44 28
+    H 102
+    a 12 12 0 0 1 12 12
+    V 76
+    a 12 12 0 0 1 -12 12
+    H 70
+    L 56 102
+    L 58 88
+    H 44
+    a 12 12 0 0 1 -12 -12
+    V 40
+    a 12 12 0 0 1 12 -12
+    Z
+  " fill="#ffffff" stroke="#3fb950" stroke-width="3" stroke-linejoin="round"/>
+
+  <!-- three dots inside the bubble: "..." comment indicator -->
+  <circle cx="58" cy="58" r="4" fill="#0d1117"/>
+  <circle cx="74" cy="58" r="4" fill="#0d1117"/>
+  <circle cx="90" cy="58" r="4" fill="#0d1117"/>
+</svg>
