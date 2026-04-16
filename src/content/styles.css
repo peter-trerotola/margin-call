@@ -1,3 +1,8 @@
+/*
+ * Margin Call "Review Preview" button injected into GitHub PR pages.
+ * Mirrors GitHub's primary button look in both light and dark modes.
+ */
+
 .margin-call-review-btn {
   display: inline-flex;
   align-items: center;
@@ -7,8 +12,8 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   line-height: 20px;
   color: #ffffff;
-  background-color: #238636;
-  border: 1px solid rgba(27, 31, 36, 0.15);
+  background-color: #1f883d;
+  border: 1px solid rgba(31, 35, 40, 0.15);
   border-radius: 6px;
   cursor: pointer;
   margin-right: 8px;
@@ -16,9 +21,22 @@
 }
 
 .margin-call-review-btn:hover {
-  background-color: #2ea043;
+  background-color: #1a7f37;
 }
 
 .margin-call-review-btn:active {
-  background-color: #218838;
+  background-color: #197935;
+}
+
+@media (prefers-color-scheme: dark) {
+  .margin-call-review-btn {
+    background-color: #238636;
+    border-color: rgba(240, 246, 252, 0.1);
+  }
+  .margin-call-review-btn:hover {
+    background-color: #2ea043;
+  }
+  .margin-call-review-btn:active {
+    background-color: #238636;
+  }
 }

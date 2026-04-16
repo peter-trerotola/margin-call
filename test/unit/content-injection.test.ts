@@ -27,6 +27,20 @@ describe('parsePrUrl', () => {
     expect(result).toEqual({ owner: 'owner', repo: 'repo', pull: 7 });
   });
 
+  it('parses a PR URL with /changes (GitHub renamed /files → /changes)', () => {
+    const result = parsePrUrl(
+      'https://github.com/acme/docs/pull/42/changes'
+    );
+    expect(result).toEqual({ owner: 'acme', repo: 'docs', pull: 42 });
+  });
+
+  it('parses a PR URL with /changes and subpath', () => {
+    const result = parsePrUrl(
+      'https://github.com/owner/repo/pull/7/changes/abc123'
+    );
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', pull: 7 });
+  });
+
   it('handles repos with hyphens and dots', () => {
     const result = parsePrUrl(
       'https://github.com/my-org/my-repo.js/pull/99/files'
@@ -101,6 +115,26 @@ describe('extractFilePath', () => {
     el.appendChild(truncate);
 
     expect(extractFilePath(el)).toBe('docs/rfc-001.md');
+  });
+
+  it('extracts path from "Expand all lines: <path>" tooltip (new Preview diff view)', () => {
+    const el = document.createElement('div');
+    el.className = 'PullRequestDiffsList-module__diffEntry__abc';
+    const tooltip = document.createElement('span');
+    tooltip.className = 'prc-TooltipV2-Tooltip-tLeuB';
+    tooltip.textContent = 'Expand all lines: docs/README.md';
+    el.appendChild(tooltip);
+
+    expect(extractFilePath(el)).toBe('docs/README.md');
+  });
+
+  it('handles tooltip with extra whitespace', () => {
+    const el = document.createElement('div');
+    const tooltip = document.createElement('span');
+    tooltip.textContent = 'Expand all lines:   src/foo/bar.mdx  ';
+    el.appendChild(tooltip);
+
+    expect(extractFilePath(el)).toBe('src/foo/bar.mdx');
   });
 
   it('returns null when no path can be found', () => {

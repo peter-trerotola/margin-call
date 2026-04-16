@@ -160,3 +160,32 @@ export function buildLineRangeMap(container: Element): LineRange[] {
 
   return ranges;
 }
+
+/**
+ * Walk a line-range map and add CSS classes to elements based on diff state:
+ *   - `mc-has-additions`: any source line in the element was added in this PR
+ *   - `mc-commentable`: any source line in the element is commentable
+ *     (added OR context appearing in the diff)
+ *
+ * Source-line indexes from the renderer are 0-indexed; diff line sets are
+ * 1-indexed (GitHub API convention). This function bridges them.
+ */
+export function markDiffState(
+  ranges: LineRange[],
+  addedLines: Set<number>,
+  commentableLines: Set<number>
+): void {
+  for (const range of ranges) {
+    const start = range.startLine + 1; // 0→1-indexed
+    const end = range.endLine + 1;
+    let hasAdded = false;
+    let hasCommentable = false;
+    for (let l = start; l <= end; l++) {
+      if (addedLines.has(l)) hasAdded = true;
+      if (commentableLines.has(l)) hasCommentable = true;
+      if (hasAdded && hasCommentable) break;
+    }
+    if (hasAdded) range.element.classList.add('mc-has-additions');
+    if (hasCommentable) range.element.classList.add('mc-commentable');
+  }
+}

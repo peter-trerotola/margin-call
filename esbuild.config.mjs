@@ -57,8 +57,9 @@ copyFileSync('src/popup/index.html', `${outdir}/popup/index.html`);
 copyFileSync('src/popup/styles.css', `${outdir}/popup/styles.css`);
 copyFileSync('src/content/styles.css', `${outdir}/content.css`);
 
-// Copy github-markdown-css
-const ghCssPath = 'node_modules/github-markdown-css/github-markdown-light.css';
+// Copy github-markdown-css — the bare `github-markdown.css` auto-switches
+// between light and dark based on prefers-color-scheme.
+const ghCssPath = 'node_modules/github-markdown-css/github-markdown.css';
 if (existsSync(ghCssPath)) {
   copyFileSync(ghCssPath, `${outdir}/panel/github-markdown.css`);
 }

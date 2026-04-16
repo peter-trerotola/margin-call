@@ -363,6 +363,20 @@ describe('OAuth Device Flow', () => {
     });
   });
 
+  describe('openPanel', () => {
+    it('opens a new tab at the given URL', async () => {
+      const url =
+        'chrome-extension://abc/panel/index.html?owner=o&repo=r&pull=1&path=doc.md';
+      const response = (await sendMessageToBackground({
+        type: 'openPanel',
+        url,
+      })) as { ok: boolean };
+
+      expect(response.ok).toBe(true);
+      expect(chrome.tabs.create).toHaveBeenCalledWith({ url });
+    });
+  });
+
   describe('unknown message type', () => {
     it('returns error status for unknown message type', async () => {
       const response = (await sendMessageToBackground({
