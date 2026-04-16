@@ -25,10 +25,9 @@ import {
  * worker restarts.
  */
 
-// Replace with your GitHub OAuth App's client_id. No secret needed for
-// device flow — client_id is public and safe to commit.
-// See docs/DEVELOPMENT.md for OAuth App setup.
-const CLIENT_ID = '__GITHUB_CLIENT_ID__';
+// GitHub OAuth App client_id. Public identifier — safe to commit because
+// Device Flow does not use a client_secret. See docs/DEVELOPMENT.md.
+const CLIENT_ID = 'Ov23li0JMwx7yL8RMLNL';
 const SCOPES = 'repo';
 
 const PENDING_AUTH_KEY = 'pending_auth';
