@@ -209,20 +209,23 @@ async function startAuth(): Promise<AuthStateResponse> {
     );
   }
 
-  const data = (await response.json()) as {
-    device_code: string;
-    user_code: string;
-    verification_uri: string;
-    verification_uri_complete?: string;
-    expires_in: number;
-    interval: number;
-  };
+  // GitHub returns either a success payload or an error payload at the
+  // same endpoint with HTTP 200, so the response can be either shape.
+  type DeviceCodeResponse =
+    | {
+        device_code: string;
+        user_code: string;
+        verification_uri: string;
+        verification_uri_complete?: string;
+        expires_in: number;
+        interval: number;
+      }
+    | { error: string; error_description?: string };
 
-  if (data.error || !data.device_code) {
-    const err = data as unknown as {
-      error?: string;
-      error_description?: string;
-    };
+  const data = (await response.json()) as DeviceCodeResponse;
+
+  if ('error' in data || !('device_code' in data)) {
+    const err = data as { error?: string; error_description?: string };
     throw new Error(
       err.error_description ?? err.error ?? 'Device code request failed'
     );
