@@ -141,12 +141,22 @@ function findFileContainers(): FileContainerMatch[] {
   // Fallback: find markdown-looking leaf elements and walk up to the
   // nearest "file row" ancestor.
   const mdLeaves = findMarkdownPathLeaves();
+  let fallbackSucceeded = 0;
+  let fallbackFailed = 0;
   for (const { leaf, path } of mdLeaves) {
     const container = walkToContainer(leaf);
     if (container && !seen.has(container)) {
       seen.add(container);
       matches.push({ container, knownPath: path });
+      fallbackSucceeded++;
+    } else if (!container) {
+      fallbackFailed++;
     }
+  }
+  if (mdLeaves.length > 0) {
+    console.log(
+      `${LOG_PREFIX} fallback leaf-walk: ${fallbackSucceeded} container(s) found, ${fallbackFailed} leaf(s) had no viable ancestor, ${mdLeaves.length - fallbackSucceeded - fallbackFailed} duplicate(s) skipped`
+    );
   }
 
   return matches;
@@ -198,32 +208,36 @@ function findMarkdownPathLeaves(): MarkdownLeaf[] {
 
 /**
  * From a markdown-path leaf, walk up to the nearest ancestor that looks
- * like a "file row" container. The heuristic: substantial block-level
- * element (>= 40px tall) whose text content is materially larger than
- * the leaf's text, indicating it wraps the filename AND other file
- * content (diff stats, the diff body, etc.).
+ * like a "file row" container. Uses three tiers of increasingly lenient
+ * heuristics, so the button appears even when GitHub ships a collapsed
+ * or minimally-populated file header.
  */
 function walkToContainer(leaf: Element): Element | null {
+  return (
+    walkToContainerByDiffBody(leaf) ??
+    walkToContainerBySize(leaf) ??
+    walkToContainerByDepth(leaf)
+  );
+}
+
+/**
+ * Tier 1: walk up until an ancestor contains materially more text than
+ * the leaf — indicating it wraps the filename AND the diff body.
+ * Works when the file is expanded and the diff hunks are in the DOM.
+ */
+function walkToContainerByDiffBody(leaf: Element): Element | null {
   const leafText = (leaf.textContent ?? '').trim();
   const minTextLen = Math.max(leafText.length * 3, 40);
 
   let cur: Element | null = leaf.parentElement;
   for (let i = 0; i < 10 && cur; i++) {
-    // Avoid picking up huge ancestors like <main>, <body>, <html>
-    if (
-      cur === document.body ||
-      cur === document.documentElement ||
-      cur.tagName === 'MAIN'
-    ) {
-      return null;
-    }
+    if (isPageRoot(cur)) return null;
     const rect = cur.getBoundingClientRect?.();
     const textLen = (cur.textContent ?? '').trim().length;
     if (
       rect &&
       rect.height >= 40 &&
       textLen >= minTextLen &&
-      // Don't blow past clearly "page-wide" ancestors
       rect.height < Math.max(window.innerHeight * 4, 2000)
     ) {
       return cur;
@@ -231,6 +245,50 @@ function walkToContainer(leaf: Element): Element | null {
     cur = cur.parentElement;
   }
   return null;
+}
+
+/**
+ * Tier 2: walk up to the first row-sized block element. Works when the
+ * file header is rendered but the diff body is virtualized / collapsed,
+ * so there's not much extra text around the filename.
+ */
+function walkToContainerBySize(leaf: Element): Element | null {
+  let cur: Element | null = leaf.parentElement;
+  for (let i = 0; i < 10 && cur; i++) {
+    if (isPageRoot(cur)) return null;
+    const rect = cur.getBoundingClientRect?.();
+    if (rect && rect.width >= 300 && rect.height >= 20) {
+      return cur;
+    }
+    cur = cur.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Tier 3: just grab an ancestor a few levels up. Works when getBoundingClientRect
+ * returns zeros (mid-render, collapsed containers) — the button might look
+ * a little awkward but at least it appears and is clickable.
+ */
+function walkToContainerByDepth(leaf: Element): Element | null {
+  let cur: Element | null = leaf.parentElement;
+  let picked: Element | null = null;
+  for (let i = 0; i < 4 && cur; i++) {
+    if (isPageRoot(cur)) break;
+    picked = cur;
+    cur = cur.parentElement;
+  }
+  return picked;
+}
+
+function isPageRoot(el: Element): boolean {
+  return (
+    el === document.body ||
+    el === document.documentElement ||
+    el.tagName === 'MAIN' ||
+    el.tagName === 'BODY' ||
+    el.tagName === 'HTML'
+  );
 }
 
 /**
