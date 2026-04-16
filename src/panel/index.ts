@@ -1,5 +1,12 @@
-import { fetchPrInfo, fetchFileContent } from './github-api.js';
-import { renderMarkdown } from './renderer.js';
+import {
+  fetchPrInfo,
+  fetchFileContent,
+  fetchPrFiles,
+  fetchPrComments,
+} from './github-api.js';
+import { renderMarkdown, buildLineRangeMap } from './renderer.js';
+import { parseDiff } from './diff-parser.js';
+import { setupReviewUI } from './review-ui.js';
 
 /** Parse query params from the current URL. */
 function getParams(): {
@@ -15,41 +22,65 @@ function getParams(): {
   const path = params.get('path');
 
   if (!owner || !repo || !pull || !path) {
-    throw new Error('Missing required query params: owner, repo, pull, path');
+    throw new Error(
+      'Missing required query params: owner, repo, pull, path'
+    );
   }
 
   return { owner, repo, pull: parseInt(pull, 10), path };
 }
 
-async function init() {
-  const contentEl = document.getElementById('markdown-content')!;
+async function init(): Promise<void> {
+  const contentEl = document.getElementById(
+    'markdown-content'
+  ) as HTMLElement;
   const prTitleEl = document.getElementById('pr-title')!;
   const prLinkEl = document.getElementById('pr-link') as HTMLAnchorElement;
   const filePathEl = document.getElementById('file-path')!;
+  const commentButton = document.getElementById(
+    'comment-button'
+  ) as HTMLButtonElement;
 
   try {
     const { owner, repo, pull, path } = getParams();
 
-    contentEl.innerHTML = '<p>Loading...</p>';
+    contentEl.innerHTML = '<p class="loading">Loading...</p>';
     filePathEl.textContent = path;
 
-    // Fetch PR metadata first — we need head_sha before we can request the
-    // file at the correct ref. Sequential rather than parallel because the
-    // file fetch strictly depends on the head SHA.
+    // PR metadata is needed first (for head_sha); everything else runs in parallel after.
     const prInfo = await fetchPrInfo(owner, repo, pull);
-    const content = await fetchFileContent(owner, repo, path, prInfo.head_sha);
-
     prTitleEl.textContent = `#${prInfo.number} ${prInfo.title}`;
     prLinkEl.href = prInfo.html_url;
     document.title = `${path} — Margin Call`;
 
-    // Render markdown
-    const html = renderMarkdown(content);
-    contentEl.innerHTML = html;
+    const [content, prFiles, existingComments] = await Promise.all([
+      fetchFileContent(owner, repo, path, prInfo.head_sha),
+      fetchPrFiles(owner, repo, pull),
+      fetchPrComments(owner, repo, pull, path),
+    ]);
 
-    // TODO Phase 4: Initialize selection handler
-    // TODO Phase 4: Fetch and parse diff for commentable lines
-    // TODO Phase 5: Fetch and display existing comments
+    // Render markdown (sanitized via DOMPurify in renderMarkdown)
+    contentEl.innerHTML = renderMarkdown(content);
+    const lineRanges = buildLineRangeMap(contentEl);
+
+    // Compute commentable lines from this file's patch
+    const thisFile = prFiles.find((f) => f.filename === path);
+    const { commentableLines } = parseDiff(thisFile?.patch);
+
+    // Wire up selection → comment button → post comment, plus existing comments
+    const ui = setupReviewUI({
+      owner,
+      repo,
+      pull,
+      path,
+      commit_id: prInfo.head_sha,
+      container: contentEl,
+      commentButton,
+      lineRanges,
+      commentableLines,
+    });
+
+    ui.displayComments(existingComments);
   } catch (error) {
     const msg =
       error instanceof Error ? error.message : 'An unknown error occurred';
@@ -57,4 +88,4 @@ async function init() {
   }
 }
 
-init();
+void init();

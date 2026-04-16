@@ -18,10 +18,17 @@ make package        # Create margin-call.zip for Chrome Web Store
 
 ## Architecture
 
-- `src/background/` — Service worker: GitHub OAuth via chrome.identity
+- `src/background/` — Service worker: GitHub OAuth via Device Flow (no client_secret needed)
 - `src/content/` — Content script: injects "Review Preview" button on GitHub PR pages
-- `src/panel/` — Review panel: markdown rendering, text selection, commenting
-- `src/popup/` — Extension popup: sign in/out
+- `src/panel/` — Review panel: markdown rendering, text selection, commenting, existing comments display
+  - `index.ts` — orchestrator
+  - `renderer.ts` — markdown-it + custom source-map plugin + DOMPurify sanitization
+  - `diff-parser.ts` — unified diff → commentable line set
+  - `selection.ts` — text selection → source line mapping
+  - `review-ui.ts` — selection handler, comment form, reply flow, inline comment display
+  - `comments.ts` — comment grouping and rendering helpers
+  - `github-api.ts` — GitHub REST API client
+- `src/popup/` — Extension popup: sign in/out, device flow UI
 - `src/shared/` — Shared utilities (chrome.storage helpers)
 - `test/` — vitest tests (unit, integration, e2e)
 

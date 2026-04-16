@@ -12,9 +12,10 @@ Margin Call consists of four main components running in separate Chrome executio
 │ Background Service Worker                                    │
 │ (OAuth Handler)                                              │
 │                                                              │
-│  startAuth()  ──┐                                            │
-│  logout()      ├─→ chrome.identity.launchWebAuthFlow        │
-│  getAuthState()─┘                                            │
+│  startAuth()   ──┐                                           │
+│  cancelAuth()   ─┤                                           │
+│  logout()       ─┼─→ GitHub Device Flow                      │
+│  getAuthState() ─┘   (no client_secret)                      │
 │                                                              │
 │ Stores: access_token, user { login, avatar_url }            │
 │ Location: chrome.storage.local                              │
@@ -50,43 +51,58 @@ Margin Call consists of four main components running in separate Chrome executio
 
 Handles all GitHub authentication and token management.
 
-#### OAuth Flow
+#### OAuth Flow (Device Flow)
+
+Margin Call uses GitHub's Device Flow rather than the standard Web Flow. The Web Flow requires a `client_secret` to exchange an authorization code for a token — that secret would be bundled into the extension's public `.zip` and leak. Device Flow needs only the public `client_id`.
 
 ```
 User clicks "Sign in with GitHub"
   ↓
-chrome.identity.launchWebAuthFlow()
-  ↓ (opens browser to GitHub OAuth URL)
-User authorizes the app
-  ↓ (redirected to chrome-extension://ID/callback)
-Code received in redirect URL
+POST github.com/login/device/code (client_id, scope)
+  → { device_code, user_code, verification_uri, expires_in, interval }
   ↓
-POST /github/login/oauth/access_token
-  (exchange code for token)
+Background stores { device_code, user_code, expires_at, interval }
+in chrome.storage.local as `pending_auth`
+  ↓
+Background opens verification_uri in a new tab (user_code pre-filled)
+  ↓
+Background polls POST github.com/login/oauth/access_token
+  (client_id, device_code, grant_type) every `interval` seconds
+  ↓
+User authorizes on github.com
+  ↓
+Poll returns { access_token }
   ↓
 Token stored in chrome.storage.local
   ↓
-getUser() → fetch /user endpoint
+GET api.github.com/user
   ↓
 User profile stored in chrome.storage.local
+pending_auth cleared
 ```
+
+The polling state in `chrome.storage.local` survives service-worker restarts — `getAuthState` resumes polling automatically if the worker was killed mid-auth.
 
 #### API
 
 The background script responds to messages:
 
 ```typescript
-// Request authentication
+// Begin device flow — returns pending state with user_code to display
 chrome.runtime.sendMessage({ type: 'startAuth' })
-  → { authenticated: true, user: { login, avatar_url } }
+  → { status: 'pending', user_code, verification_uri, ... }
 
-// Get current auth state
+// Poll the current auth state (popup uses this while pending)
 chrome.runtime.sendMessage({ type: 'getAuthState' })
-  → { authenticated: true, user: ... } | { authenticated: false, user: null }
+  → { status: 'authenticated' | 'pending' | 'unauthenticated', ... }
 
-// Logout
+// Cancel an in-flight device-flow auth
+chrome.runtime.sendMessage({ type: 'cancelAuth' })
+  → { status: 'unauthenticated', user: null }
+
+// Full sign-out (also cancels pending auth)
 chrome.runtime.sendMessage({ type: 'logout' })
-  → { authenticated: false, user: null }
+  → { status: 'unauthenticated', user: null }
 ```
 
 #### Storage
