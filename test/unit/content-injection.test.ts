@@ -27,6 +27,20 @@ describe('parsePrUrl', () => {
     expect(result).toEqual({ owner: 'owner', repo: 'repo', pull: 7 });
   });
 
+  it('parses a PR URL with /changes (GitHub renamed /files → /changes)', () => {
+    const result = parsePrUrl(
+      'https://github.com/acme/docs/pull/42/changes'
+    );
+    expect(result).toEqual({ owner: 'acme', repo: 'docs', pull: 42 });
+  });
+
+  it('parses a PR URL with /changes and subpath', () => {
+    const result = parsePrUrl(
+      'https://github.com/owner/repo/pull/7/changes/abc123'
+    );
+    expect(result).toEqual({ owner: 'owner', repo: 'repo', pull: 7 });
+  });
+
   it('handles repos with hyphens and dots', () => {
     const result = parsePrUrl(
       'https://github.com/my-org/my-repo.js/pull/99/files'
