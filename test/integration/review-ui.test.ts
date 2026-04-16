@@ -146,7 +146,7 @@ describe('setupReviewUI', () => {
     });
   });
 
-  it('disables the comment button for non-commentable selections', () => {
+  it('keeps the comment button enabled for non-commentable selections (file-level fallback)', () => {
     const markdown = '# Title\n\nNot in the diff.\n';
     const { dom, container, commentButton, lineRanges } = setupDom(
       markdown,
@@ -181,7 +181,11 @@ describe('setupReviewUI', () => {
 
     return new Promise<void>((resolve) => {
       setTimeout(() => {
-        expect(commentButton.classList.contains('disabled')).toBe(true);
+        // No longer disabled — instead the button switches to file-level mode
+        expect(commentButton.classList.contains('disabled')).toBe(false);
+        expect(commentButton.hidden).toBe(false);
+        expect(commentButton.textContent).toBe('Comment on file');
+        expect(commentButton.title).toContain('file-level');
         resolve();
       }, 10);
     });

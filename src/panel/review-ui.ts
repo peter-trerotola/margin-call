@@ -16,6 +16,7 @@ import {
   formatCommentBody,
   groupCommentsIntoThreads,
   mapThreadsToElements,
+  partitionThreadsByLevel,
   renderThread,
   type CommentThread,
 } from './comments.js';
@@ -33,12 +34,14 @@ export interface ReviewUIContext {
   commit_id: string;
   container: HTMLElement;
   commentButton: HTMLButtonElement;
+  /** Where file-level comments (no line anchor) are rendered. */
+  fileCommentsContainer?: HTMLElement;
   lineRanges: LineRange[];
   commentableLines: Set<number>;
 }
 
 export interface ReviewUI {
-  /** Display existing review comments inline. */
+  /** Display existing review comments — line-level inline, file-level in the file-comments container. */
   displayComments(comments: ReviewComment[]): void;
   /** Detach event listeners (for tests / teardown). */
   destroy(): void;
@@ -130,6 +133,7 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     commit_id,
     container,
     commentButton,
+    fileCommentsContainer,
     lineRanges,
     commentableLines,
   } = ctx;
@@ -185,13 +189,59 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     }
   }
 
+  /** Render a file-level thread in the file-comments container. */
+  function displayFileLevelThread(thread: CommentThread): void {
+    if (!fileCommentsContainer) return;
+    const threadEl = document.createElement('div');
+    threadEl.innerHTML = renderThread(thread);
+    const rendered = threadEl.firstElementChild as HTMLElement;
+    fileCommentsContainer.appendChild(rendered);
+
+    const replyBtn = rendered.querySelector<HTMLButtonElement>('.reply-btn');
+    if (replyBtn) {
+      replyBtn.addEventListener('click', () => {
+        replyBtn.disabled = true;
+        const form = createCommentForm({
+          placeholder: `Reply to @${thread.root.user.login}`,
+          onSubmit: async (body) => {
+            const reply = await postReply(
+              owner,
+              repo,
+              pull,
+              thread.root.id,
+              body
+            );
+            thread.replies.push(reply);
+            form.remove();
+            // Re-render the thread in place
+            fileCommentsContainer.removeChild(rendered);
+            displayFileLevelThread(thread);
+          },
+          onCancel: () => {
+            replyBtn.disabled = false;
+            form.remove();
+          },
+        });
+        replyBtn.insertAdjacentElement('beforebegin', form);
+      });
+    }
+  }
+
   function displayComments(comments: ReviewComment[]): void {
     const threads = groupCommentsIntoThreads(comments);
-    const anchorMap = mapThreadsToElements(threads, lineRanges);
+    const { fileLevel, lineLevel } = partitionThreadsByLevel(threads);
+
+    // Inline the line-level threads next to their anchored elements
+    const anchorMap = mapThreadsToElements(lineLevel, lineRanges);
     for (const [anchor, anchorThreads] of anchorMap) {
       for (const thread of anchorThreads) {
         displayThread(anchor, thread);
       }
+    }
+
+    // Render file-level threads in the dedicated section
+    for (const thread of fileLevel) {
+      displayFileLevelThread(thread);
     }
   }
 
@@ -209,19 +259,36 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
         return;
       }
       currentSelection = result;
-      commentButton.classList.toggle('disabled', !result.allCommentable);
-      commentButton.title = result.allCommentable
-        ? 'Add a comment on the selected text'
-        : 'This text was not changed in this PR and cannot receive a comment';
+      // Button is always enabled now — selections outside the diff fall back
+      // to a file-level comment via subject_type: "file" (the GitHub REST
+      // API still rejects line comments outside the diff, but file-level
+      // comments are accepted everywhere).
+      commentButton.classList.remove('disabled');
+      const isLineLevel = result.allCommentable;
+      commentButton.title = isLineLevel
+        ? 'Comment on this line'
+        : 'Comment on this file (selected text was not changed in the PR — will be posted as a file-level comment)';
+      commentButton.textContent = isLineLevel
+        ? 'Comment'
+        : 'Comment on file';
       positionCommentButton(commentButton, result.rect);
     }, 0);
   }
 
   function onCommentButtonClick(): void {
-    if (!currentSelection || !currentSelection.allCommentable) return;
+    if (!currentSelection) return;
     const sel = currentSelection;
     hideButton(commentButton);
 
+    if (sel.allCommentable) {
+      submitLineComment(sel);
+    } else {
+      submitFileComment(sel);
+    }
+  }
+
+  /** Post a line-anchored comment on a selection inside the diff. */
+  function submitLineComment(sel: SelectionResult): void {
     // Anchor the form below the last element in the selection
     const anchorEl = [...lineRanges]
       .reverse()
@@ -267,6 +334,39 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
       },
     });
     wrapper.appendChild(form);
+  }
+
+  /**
+   * Post a file-level comment for a selection outside the diff hunks.
+   * The selected text is preserved as a blockquote in the comment body so
+   * reviewers can still see what the comment is about.
+   */
+  function submitFileComment(sel: SelectionResult): void {
+    const target = fileCommentsContainer ?? container;
+    const form = createCommentForm({
+      selectedText: sel.selectedText,
+      placeholder:
+        'Leave a file-level comment (this section was not changed in the PR)',
+      onSubmit: async (body) => {
+        const comment = await postComment({
+          owner,
+          repo,
+          pull_number: pull,
+          body,
+          commit_id,
+          path,
+          subject_type: 'file',
+        });
+        form.remove();
+        displayFileLevelThread({ root: comment, replies: [] });
+        currentSelection = null;
+        window.getSelection()?.removeAllRanges();
+      },
+      onCancel: () => {
+        form.remove();
+      },
+    });
+    target.appendChild(form);
   }
 
   function onDocumentMouseDown(e: MouseEvent): void {

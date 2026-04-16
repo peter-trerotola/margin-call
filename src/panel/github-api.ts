@@ -27,17 +27,43 @@ export interface ReviewComment {
   in_reply_to_id?: number;
 }
 
-export interface PostCommentParams {
+/**
+ * GitHub PR review comments come in two shapes:
+ *
+ * - **Line-level**: anchored to a specific line that appears in the diff.
+ *   Required: `line`, `side`. Optional `start_line`/`start_side` for ranges.
+ *
+ * - **File-level**: anchored to the whole file, no line number. Used as a
+ *   fallback when the user selects text outside the diff hunks (the GitHub
+ *   REST API rejects line comments outside the diff with HTTP 422 as of
+ *   April 2026 — `subject_type: "file"` is the supported workaround).
+ */
+export type PostCommentParams =
+  | PostLineCommentParams
+  | PostFileCommentParams;
+
+export interface PostLineCommentParams {
   owner: string;
   repo: string;
   pull_number: number;
   body: string;
   commit_id: string;
   path: string;
+  subject_type?: 'line';
   line: number;
   side: 'RIGHT' | 'LEFT';
   start_line?: number;
   start_side?: 'RIGHT' | 'LEFT';
+}
+
+export interface PostFileCommentParams {
+  owner: string;
+  repo: string;
+  pull_number: number;
+  body: string;
+  commit_id: string;
+  path: string;
+  subject_type: 'file';
 }
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -189,19 +215,31 @@ export async function fetchPrComments(
 export async function postComment(
   params: PostCommentParams
 ): Promise<ReviewComment> {
-  const { owner, repo, pull_number, ...body } = params;
+  const { owner, repo, pull_number } = params;
 
-  const requestBody: Record<string, unknown> = {
-    body: body.body,
-    commit_id: body.commit_id,
-    path: body.path,
-    line: body.line,
-    side: body.side,
-  };
+  let requestBody: Record<string, unknown>;
 
-  if (body.start_line !== undefined) {
-    requestBody.start_line = body.start_line;
-    requestBody.start_side = body.start_side ?? body.side;
+  if (params.subject_type === 'file') {
+    // File-level comment: no line, anchored to the whole file.
+    requestBody = {
+      body: params.body,
+      commit_id: params.commit_id,
+      path: params.path,
+      subject_type: 'file',
+    };
+  } else {
+    // Line-level comment (default): must be on a line within the diff.
+    requestBody = {
+      body: params.body,
+      commit_id: params.commit_id,
+      path: params.path,
+      line: params.line,
+      side: params.side,
+    };
+    if (params.start_line !== undefined) {
+      requestBody.start_line = params.start_line;
+      requestBody.start_side = params.start_side ?? params.side;
+    }
   }
 
   return apiFetch<ReviewComment>(

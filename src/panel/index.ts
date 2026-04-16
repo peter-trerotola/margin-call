@@ -45,6 +45,9 @@ async function init(): Promise<void> {
   const commentButton = document.getElementById(
     'comment-button'
   ) as HTMLButtonElement;
+  const fileCommentsContainer = document.getElementById(
+    'file-comments'
+  ) as HTMLElement;
 
   try {
     const { owner, repo, pull, path } = getParams();
@@ -101,11 +104,27 @@ async function init(): Promise<void> {
       commit_id: prInfo.head_sha,
       container: contentEl,
       commentButton,
+      fileCommentsContainer,
       lineRanges,
       commentableLines,
     });
 
     ui.displayComments(existingComments);
+
+    // Reveal the file-comments section if any file-level threads were rendered
+    if (fileCommentsContainer.querySelector('.comment-thread')) {
+      fileCommentsContainer.hidden = false;
+    }
+    // Also reveal it lazily as new file-level comments are posted
+    new MutationObserver(() => {
+      if (
+        fileCommentsContainer.querySelector(
+          '.comment-thread, .comment-form'
+        )
+      ) {
+        fileCommentsContainer.hidden = false;
+      }
+    }).observe(fileCommentsContainer, { childList: true });
   } catch (error) {
     const msg =
       error instanceof Error ? error.message : 'An unknown error occurred';

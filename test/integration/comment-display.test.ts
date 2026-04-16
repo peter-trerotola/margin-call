@@ -6,6 +6,7 @@ import { renderMarkdown, buildLineRangeMap } from '../../src/panel/renderer.js';
 import {
   groupCommentsIntoThreads,
   mapThreadsToElements,
+  partitionThreadsByLevel,
   renderThread,
   renderCommentCard,
   type CommentThread,
@@ -117,6 +118,61 @@ describe('comment display integration', () => {
 
     // File-level comments (null line) should not be mapped to elements
     expect(threadMap.size).toBe(0);
+  });
+});
+
+describe('partitionThreadsByLevel', () => {
+  it('separates file-level threads (line=null) from line-level threads', () => {
+    const threads: CommentThread[] = [
+      {
+        root: {
+          id: 1,
+          body: 'On line 5',
+          line: 5,
+          start_line: null,
+          path: 'doc.md',
+          user: { login: 'a', avatar_url: '' },
+          created_at: '2026-01-01T00:00:00Z',
+        },
+        replies: [],
+      },
+      {
+        root: {
+          id: 2,
+          body: 'On the file',
+          line: null,
+          start_line: null,
+          path: 'doc.md',
+          user: { login: 'b', avatar_url: '' },
+          created_at: '2026-01-01T01:00:00Z',
+        },
+        replies: [],
+      },
+      {
+        root: {
+          id: 3,
+          body: 'Also file-level',
+          line: null,
+          start_line: null,
+          path: 'doc.md',
+          user: { login: 'c', avatar_url: '' },
+          created_at: '2026-01-01T02:00:00Z',
+        },
+        replies: [],
+      },
+    ];
+
+    const { fileLevel, lineLevel } = partitionThreadsByLevel(threads);
+    expect(lineLevel.length).toBe(1);
+    expect(lineLevel[0].root.id).toBe(1);
+    expect(fileLevel.length).toBe(2);
+    expect(fileLevel.map((t) => t.root.id)).toEqual([2, 3]);
+  });
+
+  it('returns empty partitions for an empty input', () => {
+    const result = partitionThreadsByLevel([]);
+    expect(result.fileLevel).toEqual([]);
+    expect(result.lineLevel).toEqual([]);
   });
 });
 

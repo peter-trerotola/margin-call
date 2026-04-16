@@ -43,6 +43,17 @@ make test
 
 After editing source code, run `make build` and click the reload button on the extension card in `chrome://extensions`.
 
+### Commenting outside the diff
+
+GitHub's web UI lets you comment on any line of a file in a PR, even lines that weren't changed. The GitHub REST API does not (it returns `422 line must be part of the diff`). Margin Call works around this by automatically falling back to a **file-level comment** when you select text that isn't in the diff.
+
+When you select text:
+
+- **Inside a green-bordered section** (added or context lines from the diff) → the button reads "Comment" and posts a normal line-anchored review comment on the right line
+- **Outside the diff** → the button switches to "Comment on file"; submitting posts a file-level comment with your selected text quoted in the body. It appears in the "File-level comments" section at the top of the panel and shows up on the GitHub PR as a file-level review comment.
+
+This matches what reviewers expect from github.com today, without losing line precision when it's available.
+
 ### Troubleshooting
 
 **`Failed to load extension: Value 'key' is missing or invalid.`**

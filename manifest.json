@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Margin Call",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Comment on rendered markdown previews in GitHub PRs. Because GitHub won't let you write in the margins.",
   "permissions": [
     "identity",
