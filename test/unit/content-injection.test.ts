@@ -117,6 +117,26 @@ describe('extractFilePath', () => {
     expect(extractFilePath(el)).toBe('docs/rfc-001.md');
   });
 
+  it('extracts path from "Expand all lines: <path>" tooltip (new Preview diff view)', () => {
+    const el = document.createElement('div');
+    el.className = 'PullRequestDiffsList-module__diffEntry__abc';
+    const tooltip = document.createElement('span');
+    tooltip.className = 'prc-TooltipV2-Tooltip-tLeuB';
+    tooltip.textContent = 'Expand all lines: docs/README.md';
+    el.appendChild(tooltip);
+
+    expect(extractFilePath(el)).toBe('docs/README.md');
+  });
+
+  it('handles tooltip with extra whitespace', () => {
+    const el = document.createElement('div');
+    const tooltip = document.createElement('span');
+    tooltip.textContent = 'Expand all lines:   src/foo/bar.mdx  ';
+    el.appendChild(tooltip);
+
+    expect(extractFilePath(el)).toBe('src/foo/bar.mdx');
+  });
+
   it('returns null when no path can be found', () => {
     const el = document.createElement('div');
     expect(extractFilePath(el)).toBeNull();

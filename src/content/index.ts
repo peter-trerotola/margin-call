@@ -19,13 +19,24 @@ export function parsePrUrl(
   return { owner: match[1], repo: match[2], pull: parseInt(match[3], 10) };
 }
 
-/** Extract the file path from a GitHub file header element. */
+/** Extract the file path from a GitHub file container element. */
 export function extractFilePath(fileHeader: Element): string | null {
-  // Modern GitHub puts the path in data-tagsearch-path on the file wrapper
+  // Classic GitHub: data-tagsearch-path attribute on the wrapper
   const pathAttr = fileHeader.getAttribute('data-tagsearch-path');
   if (pathAttr) return pathAttr;
 
-  // Older / alternative DOM shapes
+  // New ""Preview"" diff view: the only place the FULL path appears is the
+  // ""Expand all lines: <path>"" tooltip text. The visible text shows only
+  // the basename. Search descendants for that pattern.
+  const candidates = fileHeader.querySelectorAll('span, div');
+  for (const el of candidates) {
+    if (el.children.length > 0) continue; // leaf nodes only
+    const txt = el.textContent?.trim() ?? '';
+    const m = txt.match(/^Expand all lines:\s*(.+)$/);
+    if (m && m[1]) return m[1];
+  }
+
+  // Older / alternative DOM shapes (legacy split/unified diff)
   const link = fileHeader.querySelector<HTMLAnchorElement>(
     'a[title], a[href*="#diff-"]'
   );
@@ -87,10 +98,15 @@ function createReviewButton(
  */
 function findFileContainers(): Element[] {
   const selectorGroups = [
-    '[data-tagsearch-path]', // most common modern marker — has path as attr
-    '[data-details-container-group="file"]', // newer container
-    '.file', // legacy wrapper
-    'copilot-diff-entry', // GitHub's web component for diff entries
+    // New ""Preview"" diff view (React, CSS Modules with hashed class names)
+    '[class*="PullRequestDiffsList-module__diffEntry"]',
+    // Classic file wrapper with path-as-attribute
+    '[data-tagsearch-path]',
+    // Other newer containers
+    '[data-details-container-group="file"]',
+    'copilot-diff-entry',
+    // Legacy wrapper
+    '.file',
   ];
   const seen = new Set<Element>();
   const containers: Element[] = [];
@@ -111,6 +127,9 @@ function findFileContainers(): Element[] {
  */
 function findActionBar(container: Element): Element {
   return (
+    // New ""Preview"" diff view: file header is the prominent bar with
+    // the path + actions. Inject the button at the start of it.
+    container.querySelector('[class*="DiffFileHeader-module__diff-file-header"]') ??
     container.querySelector('.file-actions') ??
     container.querySelector('.js-file-header-dropdown') ??
     container.querySelector('[data-component="PR_FileActions"]') ??
