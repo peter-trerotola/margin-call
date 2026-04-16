@@ -237,6 +237,20 @@ body {
   cursor: text;
 }
 
+/*
+ * Suppress the diff indicator on individual <li> elements — the list
+ * marker (1., 2., •) is rendered at the LI's left edge and the green
+ * vertical border cuts straight through it. The parent <ol>/<ul> still
+ * carries the indicator for the whole block, and per-line commentability
+ * is unaffected (data-source-line attributes remain on each LI).
+ */
+.markdown-body li.mc-has-additions,
+.markdown-body li.mc-commentable {
+  border-left: none;
+  padding-left: 0;
+  background: none;
+}
+
 /* Comment UI */
 .comment-float-btn {
   position: fixed;
