@@ -2,8 +2,8 @@
 
 > Comment on rendered markdown previews in GitHub PRs. The thing GitHub forgot.
 
+[![CI](https://github.com/peter-trerotola/margin-call/actions/workflows/ci.yml/badge.svg)](https://github.com/peter-trerotola/margin-call/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Tests](https://img.shields.io/badge/tests-135%20passing-green)](./docs/TESTING.md)
 [![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)](./manifest.json)
 
 ## The problem

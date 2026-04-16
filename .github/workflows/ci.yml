@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-flight runs for the same PR if a new push lands
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js (pinned to project's Docker dev image)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Unit + integration tests
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Verify packaged extension manifest is valid
+        run: |
+          node -e "
+            const m = JSON.parse(require('fs').readFileSync('dist/manifest.json'));
+            if (m.manifest_version !== 3) { console.error('manifest_version must be 3'); process.exit(1); }
+            if (!m.version || !/^\d+\.\d+\.\d+$/.test(m.version)) { console.error('version must be semver'); process.exit(1); }
+            if (m.key === '') { console.error('manifest.key cannot be empty string'); process.exit(1); }
+            console.log('manifest.json OK — name=' + m.name + ' version=' + m.version);
+          "
+
+      - name: Package as zip
+        run: |
+          cd dist && zip -r ../margin-call.zip .
+          ls -lh ../margin-call.zip
+
+      - name: Upload extension artifact (sideload-ready zip)
+        uses: actions/upload-artifact@v4
+        with:
+          name: margin-call-${{ github.sha }}
+          path: margin-call.zip
+          retention-days: 14

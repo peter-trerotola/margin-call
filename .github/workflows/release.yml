@@ -1,0 +1,126 @@
+name: Release
+
+# Triggered when you push a version tag like `v1.0.0`. Creates a GitHub
+# Release with the packaged extension attached, and (if Chrome Web Store
+# secrets are configured) auto-publishes the new version.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write # to create the GitHub Release
+
+jobs:
+  release:
+    name: Build, package, release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Verify version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          MANIFEST_VERSION=$(node -p "require('./manifest.json').version")
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$MANIFEST_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match manifest.json version $MANIFEST_VERSION"
+            exit 1
+          fi
+          if [ "$TAG_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match package.json version $PACKAGE_VERSION"
+            exit 1
+          fi
+          echo "Version $TAG_VERSION matches manifest + package.json"
+
+      - name: Test
+        run: npm test
+
+      - name: Build extension
+        run: npm run build
+
+      - name: Package as zip
+        run: |
+          ZIP_NAME="margin-call-${GITHUB_REF_NAME}.zip"
+          cd dist && zip -r "../$ZIP_NAME" .
+          cd ..
+          echo "ZIP_NAME=$ZIP_NAME" >> "$GITHUB_ENV"
+          ls -lh "$ZIP_NAME"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: ${{ env.ZIP_NAME }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }} # v1.0.0-rc1 → prerelease
+
+      # Optional: auto-publish to Chrome Web Store. The step is always run
+      # but skips itself if any required secret is missing, so the workflow
+      # works out-of-the-box for GitHub Releases and grows into auto-publish
+      # once you set up the secrets. See docs/RELEASE.md for setup.
+      - name: Publish to Chrome Web Store
+        env:
+          CWS_CLIENT_ID: ${{ secrets.CWS_CLIENT_ID }}
+          CWS_CLIENT_SECRET: ${{ secrets.CWS_CLIENT_SECRET }}
+          CWS_REFRESH_TOKEN: ${{ secrets.CWS_REFRESH_TOKEN }}
+          CWS_EXTENSION_ID: ${{ secrets.CWS_EXTENSION_ID }}
+        run: |
+          if [ -z "$CWS_CLIENT_ID" ] || [ -z "$CWS_CLIENT_SECRET" ] || \
+             [ -z "$CWS_REFRESH_TOKEN" ] || [ -z "$CWS_EXTENSION_ID" ]; then
+            echo "Chrome Web Store secrets not configured; skipping auto-publish."
+            echo "See docs/RELEASE.md to enable."
+            exit 0
+          fi
+
+          echo "Exchanging refresh token for access token..."
+          ACCESS_TOKEN=$(curl -fsSL -X POST \
+            -d "client_id=$CWS_CLIENT_ID" \
+            -d "client_secret=$CWS_CLIENT_SECRET" \
+            -d "refresh_token=$CWS_REFRESH_TOKEN" \
+            -d "grant_type=refresh_token" \
+            https://oauth2.googleapis.com/token | jq -r '.access_token')
+
+          if [ -z "$ACCESS_TOKEN" ] || [ "$ACCESS_TOKEN" = "null" ]; then
+            echo "::error::Failed to obtain access token from Google OAuth"
+            exit 1
+          fi
+
+          echo "Uploading new package to extension $CWS_EXTENSION_ID..."
+          UPLOAD_RESPONSE=$(curl -fsSL -X PUT \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -T "$ZIP_NAME" \
+            "https://www.googleapis.com/upload/chromewebstore/v1.1/items/$CWS_EXTENSION_ID")
+          echo "$UPLOAD_RESPONSE"
+
+          UPLOAD_STATE=$(echo "$UPLOAD_RESPONSE" | jq -r '.uploadState')
+          if [ "$UPLOAD_STATE" != "SUCCESS" ]; then
+            echo "::error::Upload failed: $UPLOAD_STATE"
+            exit 1
+          fi
+
+          echo "Publishing extension..."
+          PUBLISH_RESPONSE=$(curl -fsSL -X POST \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "x-goog-api-version: 2" \
+            -H "Content-Length: 0" \
+            "https://www.googleapis.com/chromewebstore/v1.1/items/$CWS_EXTENSION_ID/publish")
+          echo "$PUBLISH_RESPONSE"
+
+          PUBLISH_STATUS=$(echo "$PUBLISH_RESPONSE" | jq -r '.status[]?' | head -1)
+          if [ "$PUBLISH_STATUS" = "OK" ]; then
+            echo "Successfully published $GITHUB_REF_NAME to Chrome Web Store."
+          else
+            echo "::warning::Publish status: $PUBLISH_STATUS — review may be required."
+          fi
