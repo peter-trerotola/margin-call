@@ -24,8 +24,12 @@
         "https://github.com/*/pull/*/changes",
         "https://github.com/*/pull/*/changes/*"
       ],
-      "js": ["content.js"],
-      "css": ["content.css"]
+      "js": [
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ]
     }
   ],
   "action": {
