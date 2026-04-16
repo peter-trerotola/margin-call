@@ -117,42 +117,73 @@ interface MarkdownLeaf {
 }
 
 /**
- * Find every leaf element (no children) whose visible text looks like a
- * markdown file path. Returns the leaf + extracted path.
+ * Find every leaf element (no children) whose visible text contains a
+ * markdown file path. Three matchers, tried in order of specificity:
  *
- * We accept two shapes of leaf text:
- *   - "Path/To/File.md" — bare filename (classic diff view)
- *   - "Expand all lines: Path/To/File.md" — tooltip content on the
- *     new Preview view (leaf is usually a hidden tooltip span)
+ *   1. "Expand all lines: <path>" — tooltip on the new Preview view
+ *   2. Bare path, no whitespace ("docs/readme.md")
+ *   3. Path token embedded in text ("docs/readme.md +28 -9", "Viewed docs/readme.md")
+ *
+ * Returns ALL matching leaves with no de-dup by path — duplicates may be the
+ * same path appearing in the file-tree sidebar AND the diff content header,
+ * and we need to keep both so the caller can pick the content-area one.
  */
 function findMarkdownPathLeaves(): MarkdownLeaf[] {
   const MD_EXT = /\.(md|mdx|markdown)$/i;
   const EXPAND = /^Expand all lines:\s*(.+\.(?:md|mdx|markdown))$/i;
+  // A path-shaped token (no whitespace) ending in a markdown extension.
+  // Bounded by start/whitespace on the left so we don't match parts of words.
+  const PATH_TOKEN =
+    /(?:^|\s)([^\s/]+(?:\/[^\s/]+)*\.(?:md|mdx|markdown))(?:\s|$)/i;
   const results: MarkdownLeaf[] = [];
-  const seenPaths = new Set<string>();
 
   for (const el of document.querySelectorAll<HTMLElement>(
-    'span, a, div, strong'
+    'span, a, div, strong, code'
   )) {
     if (el.children.length > 0) continue;
     const txt = (el.textContent ?? '').trim();
-    if (!txt || txt.length > 300) continue;
+    if (!txt || txt.length > 200) continue;
 
     let path: string | null = null;
     const expandMatch = txt.match(EXPAND);
     if (expandMatch) {
       path = expandMatch[1].trim();
-    } else if (MD_EXT.test(txt) && !txt.includes(' ') && !txt.includes('\n')) {
-      // Bare path — no whitespace, ends in a markdown extension
+    } else if (MD_EXT.test(txt) && !/\s/.test(txt)) {
       path = txt;
+    } else {
+      const tokenMatch = (' ' + txt).match(PATH_TOKEN);
+      if (tokenMatch) path = tokenMatch[1];
     }
     if (!path) continue;
-
-    if (seenPaths.has(path)) continue;
-    seenPaths.add(path);
     results.push({ leaf: el, path });
   }
   return results;
+}
+
+/** Width below which an ancestor is treated as a sidebar/file-tree (skip it). */
+const SIDEBAR_WIDTH_THRESHOLD = 400;
+
+/**
+ * Skip leaves that live inside a sidebar/file-tree panel — those have the
+ * same filename text as the diff's file header but injecting there puts the
+ * button in the wrong place. We climb up to the nearest sized ancestor and
+ * if it's narrower than SIDEBAR_WIDTH_THRESHOLD, the leaf is sidebar-bound.
+ */
+function isInSidebar(leaf: Element): boolean {
+  let cur: Element | null = leaf;
+  for (let i = 0; i < 12 && cur; i++) {
+    if (isPageRoot(cur)) return false;
+    const rect = cur.getBoundingClientRect?.();
+    if (rect && rect.width > 0 && rect.height > 0) {
+      // First sized ancestor — if it's narrow, the leaf is in a sidebar.
+      // Tolerate slightly wider sidebars (file-tree panels can be ~400px
+      // when expanded), but anything sub-400 is almost certainly not the
+      // diff content area.
+      return rect.width < SIDEBAR_WIDTH_THRESHOLD;
+    }
+    cur = cur.parentElement;
+  }
+  return false;
 }
 
 /**
@@ -357,18 +388,30 @@ function injectButtons(): void {
     knownInjected++;
   }
 
-  // Phase 2: always try the leaf-walk fallback for any markdown leaf NOT
-  // already covered by a known-selector container. Runs unconditionally so
-  // that even when known selectors match non-markdown files (or fail
-  // extractFilePath), we still find the markdown ones.
+  // Phase 2: leaf-walk fallback. The same path can appear as a leaf in
+  // multiple places (file-tree sidebar AND diff content header). We split
+  // leaves into content-area vs. sidebar buckets and prefer content-area
+  // leaves; fall back to sidebar leaves only if no content-area ones exist
+  // (better a button in a slightly wrong place than no button at all).
   const leaves = findMarkdownPathLeaves();
+  const contentLeaves: MarkdownLeaf[] = [];
+  const sidebarLeaves: MarkdownLeaf[] = [];
+  for (const l of leaves) {
+    if (!isMarkdownFile(l.path)) continue;
+    if (isInSidebar(l.leaf)) sidebarLeaves.push(l);
+    else contentLeaves.push(l);
+  }
+  const leavesToProcess =
+    contentLeaves.length > 0 ? contentLeaves : sidebarLeaves;
+  const usingSidebarFallback =
+    contentLeaves.length === 0 && sidebarLeaves.length > 0;
+
   let fallbackInjected = 0;
   let fallbackNoContainer = 0;
   let fallbackAlreadyCovered = 0;
+  const handledContainers = new Set<Element>();
 
-  for (const { leaf, path } of leaves) {
-    if (!isMarkdownFile(path)) continue;
-    // Skip leaves that live inside a container we already handled.
+  for (const { leaf, path } of leavesToProcess) {
     const alreadyInKnown = knownMatches.some((c) => c.contains(leaf));
     if (alreadyInKnown) {
       fallbackAlreadyCovered++;
@@ -379,6 +422,8 @@ function injectButtons(): void {
       fallbackNoContainer++;
       continue;
     }
+    if (handledContainers.has(container)) continue;
+    handledContainers.add(container);
     if (container.querySelector(`[${BUTTON_ATTR}]`)) {
       continue;
     }
@@ -393,19 +438,24 @@ function injectButtons(): void {
     knownNoPath,
     knownNonMd,
     knownExisting,
-    leaves.length,
+    contentLeaves.length,
+    sidebarLeaves.length,
     fallbackInjected,
     fallbackNoContainer,
     fallbackAlreadyCovered,
+    usingSidebarFallback ? 1 : 0,
   ].join(',');
 
   if (statusKey === lastStatusKey) return;
   lastStatusKey = statusKey;
 
+  const sidebarSuffix = usingSidebarFallback
+    ? ' [SIDEBAR FALLBACK — no content-area leaves found]'
+    : '';
   const parts = [
     `known(matches=${knownMatches.length}, injected=${knownInjected}, no_path=${knownNoPath}, non_md=${knownNonMd}, existing=${knownExisting})`,
-    `fallback(leaves=${leaves.length}, injected=${fallbackInjected}, no_container=${fallbackNoContainer}, already_covered=${fallbackAlreadyCovered})`,
-    `→ total=${totalInjected}`,
+    `fallback(content_leaves=${contentLeaves.length}, sidebar_leaves=${sidebarLeaves.length}, injected=${fallbackInjected}, no_container=${fallbackNoContainer}, already_covered=${fallbackAlreadyCovered})`,
+    `→ total=${totalInjected}${sidebarSuffix}`,
   ];
   console.log(`${LOG_PREFIX} inject: ${parts.join('  ')}`);
 }
