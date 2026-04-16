@@ -86,7 +86,9 @@ function createReviewButton(
         `&pull=${pull}` +
         `&path=${encodeURIComponent(filePath)}`
     );
-    void chrome.tabs.create({ url: panelUrl });
+    // Content scripts cannot call chrome.tabs.create directly — message
+    // the background service worker, which has access to chrome.tabs.
+    void chrome.runtime.sendMessage({ type: 'openPanel', url: panelUrl });
   });
   return btn;
 }

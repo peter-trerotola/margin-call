@@ -41,11 +41,16 @@ interface PendingAuth {
   interval: number; // seconds between polls
 }
 
-type AuthMessage =
+type Message =
   | { type: 'startAuth' }
   | { type: 'cancelAuth' }
   | { type: 'logout' }
-  | { type: 'getAuthState' };
+  | { type: 'getAuthState' }
+  | { type: 'openPanel'; url: string };
+
+// Backwards-compatible alias for tests that import the auth-only subset
+type AuthMessage = Exclude<Message, { type: 'openPanel' }>;
+void (null as unknown as AuthMessage);
 
 interface GitHubUser {
   login: string;
@@ -299,9 +304,9 @@ async function getAuthState(): Promise<AuthStateResponse> {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  const msg = message as AuthMessage;
+  const msg = message as Message;
 
-  const handle = async (): Promise<AuthStateResponse> => {
+  const handle = async (): Promise<unknown> => {
     switch (msg.type) {
       case 'startAuth':
         return startAuth();
@@ -311,6 +316,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return logout();
       case 'getAuthState':
         return getAuthState();
+      case 'openPanel':
+        // Content scripts can't call chrome.tabs.create directly; they
+        // dispatch to us instead.
+        await chrome.tabs.create({ url: msg.url });
+        return { ok: true };
       default:
         throw new Error(
           `Unknown message type: ${(msg as { type: string }).type}`
