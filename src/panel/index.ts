@@ -4,7 +4,11 @@ import {
   fetchPrFiles,
   fetchPrComments,
 } from './github-api.js';
-import { renderMarkdown, buildLineRangeMap } from './renderer.js';
+import {
+  renderMarkdown,
+  buildLineRangeMap,
+  markDiffState,
+} from './renderer.js';
 import { parseDiff } from './diff-parser.js';
 import { setupReviewUI } from './review-ui.js';
 
@@ -63,9 +67,24 @@ async function init(): Promise<void> {
     contentEl.innerHTML = renderMarkdown(content);
     const lineRanges = buildLineRangeMap(contentEl);
 
-    // Compute commentable lines from this file's patch
+    // Compute commentable / added lines from this file's patch
     const thisFile = prFiles.find((f) => f.filename === path);
-    const { commentableLines } = parseDiff(thisFile?.patch);
+    const diffResult = parseDiff(thisFile?.patch);
+    const { commentableLines, addedLines, added, removed } = diffResult;
+
+    // Visually mark elements with additions / commentable status
+    markDiffState(lineRanges, addedLines, commentableLines);
+
+    // Render a legend bar so reviewers know what's what
+    const filePathEl = document.getElementById('file-path')!;
+    const legend = document.createElement('span');
+    legend.className = 'diff-legend';
+    legend.innerHTML =
+      `<span class="diff-stat added">+${added}</span> ` +
+      `<span class="diff-stat removed">−${removed}</span>` +
+      ` <span class="diff-hint">Sections with a green border were added in this PR ` +
+      `and can receive comments.</span>`;
+    filePathEl.appendChild(legend);
 
     // Wire up selection → comment button → post comment, plus existing comments
     const ui = setupReviewUI({

@@ -11,15 +11,19 @@ function fixture(name: string): string {
 }
 
 describe('parseDiff', () => {
-  it('parses a new file — all lines are commentable', () => {
+  it('parses a new file — all lines are commentable and added', () => {
     const patch = fixture('new-file.diff');
     const result = parseDiff(patch);
 
     // Lines 1-10 should all be commentable (1-indexed)
     for (let i = 1; i <= 10; i++) {
       expect(result.commentableLines.has(i)).toBe(true);
+      expect(result.addedLines.has(i)).toBe(true);
     }
     expect(result.commentableLines.size).toBe(10);
+    expect(result.addedLines.size).toBe(10);
+    expect(result.added).toBe(10);
+    expect(result.removed).toBe(0);
     expect(result.hunks).toEqual([{ start: 1, end: 10 }]);
   });
 
@@ -49,12 +53,26 @@ describe('parseDiff', () => {
     expect(result.commentableLines.has(8)).toBe(false);
 
     expect(result.hunks.length).toBe(2);
+
+    // Added lines: 3, 4 (first hunk), 14, 15 (second hunk)
+    expect(result.addedLines.has(3)).toBe(true);
+    expect(result.addedLines.has(4)).toBe(true);
+    expect(result.addedLines.has(14)).toBe(true);
+    expect(result.addedLines.has(15)).toBe(true);
+    // Context lines should be commentable but NOT in addedLines
+    expect(result.addedLines.has(1)).toBe(false);
+    expect(result.addedLines.has(11)).toBe(false);
+    expect(result.added).toBe(4);
+    expect(result.removed).toBe(1);
   });
 
   it('returns empty result for null/undefined patch', () => {
     expect(parseDiff(null).commentableLines.size).toBe(0);
     expect(parseDiff(undefined).commentableLines.size).toBe(0);
+    expect(parseDiff(null).addedLines.size).toBe(0);
     expect(parseDiff(null).hunks.length).toBe(0);
+    expect(parseDiff(null).added).toBe(0);
+    expect(parseDiff(null).removed).toBe(0);
   });
 
   it('returns empty result for empty patch', () => {

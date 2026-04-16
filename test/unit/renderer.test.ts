@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import { JSDOM } from 'jsdom';
-import { renderMarkdown, buildLineRangeMap, createRenderer } from '../../src/panel/renderer.js';
+import {
+  renderMarkdown,
+  buildLineRangeMap,
+  createRenderer,
+  markDiffState,
+} from '../../src/panel/renderer.js';
 
 function fixture(name: string): string {
   return readFileSync(
@@ -203,6 +208,61 @@ describe('createRenderer', () => {
     const md = createRenderer();
     const html = md.render('Visit https://example.com\n');
     expect(html).toContain('href="https://example.com"');
+  });
+});
+
+describe('markDiffState', () => {
+  it('adds mc-has-additions to elements containing added lines', () => {
+    const html = renderMarkdown('# Heading\n\nFirst para.\n\nSecond para.\n');
+    const doc = toDom(html);
+    const root = doc.getElementById('root')!;
+    const ranges = buildLineRangeMap(root);
+
+    // Pretend lines 1 (heading) and 5 (second para) were added
+    markDiffState(ranges, new Set([1, 5]), new Set([1, 3, 5]));
+
+    const annotated = root.querySelectorAll('[data-source-line]');
+    const withAdditions = root.querySelectorAll('.mc-has-additions');
+    expect(annotated.length).toBeGreaterThan(0);
+    expect(withAdditions.length).toBe(2);
+  });
+
+  it('adds mc-commentable to elements with any commentable line', () => {
+    const html = renderMarkdown('A\n\nB\n\nC\n');
+    const doc = toDom(html);
+    const root = doc.getElementById('root')!;
+    const ranges = buildLineRangeMap(root);
+
+    // Only line 3 ("B") is commentable
+    markDiffState(ranges, new Set(), new Set([3]));
+
+    const commentable = root.querySelectorAll('.mc-commentable');
+    expect(commentable.length).toBe(1);
+  });
+
+  it('marks both classes when an element has additions', () => {
+    const html = renderMarkdown('Para\n');
+    const doc = toDom(html);
+    const root = doc.getElementById('root')!;
+    const ranges = buildLineRangeMap(root);
+
+    markDiffState(ranges, new Set([1]), new Set([1]));
+
+    const p = root.querySelector('p')!;
+    expect(p.classList.contains('mc-has-additions')).toBe(true);
+    expect(p.classList.contains('mc-commentable')).toBe(true);
+  });
+
+  it('does not mark elements outside the diff', () => {
+    const html = renderMarkdown('# Title\n\nSome text\n');
+    const doc = toDom(html);
+    const root = doc.getElementById('root')!;
+    const ranges = buildLineRangeMap(root);
+
+    markDiffState(ranges, new Set(), new Set());
+
+    expect(root.querySelectorAll('.mc-has-additions').length).toBe(0);
+    expect(root.querySelectorAll('.mc-commentable').length).toBe(0);
   });
 });
 

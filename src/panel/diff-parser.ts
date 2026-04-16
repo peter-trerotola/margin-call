@@ -13,18 +13,28 @@ export interface HunkRange {
 }
 
 export interface DiffResult {
+  /** All lines (additions + context) that can receive a PR review comment. */
   commentableLines: Set<number>;
+  /** Lines that were added (`+` in the diff). Subset of commentableLines. */
+  addedLines: Set<number>;
+  /** Hunk ranges in the new file. */
   hunks: HunkRange[];
+  /** Total counts for legend display. */
+  added: number;
+  removed: number;
 }
 
 const HUNK_HEADER_RE = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/;
 
 export function parseDiff(patch: string | undefined | null): DiffResult {
   const commentableLines = new Set<number>();
+  const addedLines = new Set<number>();
   const hunks: HunkRange[] = [];
+  let added = 0;
+  let removed = 0;
 
   if (!patch) {
-    return { commentableLines, hunks };
+    return { commentableLines, addedLines, hunks, added, removed };
   }
 
   const lines = patch.split('\n');
@@ -56,10 +66,13 @@ export function parseDiff(patch: string | undefined | null): DiffResult {
     if (line.startsWith('+')) {
       // Addition — commentable on RIGHT side
       commentableLines.add(currentLine);
+      addedLines.add(currentLine);
+      added++;
       currentLine++;
     } else if (line.startsWith('-')) {
       // Deletion — only in old file, does NOT increment new-file line counter
       // Not commentable on RIGHT side
+      removed++;
     } else if (line.startsWith(' ') || line === '') {
       // Context line — commentable (it appears in the diff).
       // Empty lines within a hunk are context lines (git may strip the
@@ -76,7 +89,7 @@ export function parseDiff(patch: string | undefined | null): DiffResult {
     hunks.push({ start: hunkStart, end: currentLine - 1 });
   }
 
-  return { commentableLines, hunks };
+  return { commentableLines, addedLines, hunks, added, removed };
 }
 
 /**
