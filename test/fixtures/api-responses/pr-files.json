@@ -1,0 +1,12 @@
+[
+  {
+    "filename": "docs/rfc-001.md",
+    "status": "added",
+    "patch": "@@ -0,0 +1,10 @@\n+# RFC-001\n+\n+## Summary\n+\n+This document describes the service architecture.\n+\n+## Details\n+\n+More content here.\n+\n"
+  },
+  {
+    "filename": "src/main.ts",
+    "status": "modified",
+    "patch": "@@ -1,3 +1,4 @@\n import { app } from './app';\n+import { config } from './config';\n \n app.listen(3000);"
+  }
+]

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="styles.css">
+  <title>Margin Call</title>
+</head>
+<body>
+  <div class="popup">
+    <h1 class="title">Margin Call</h1>
+    <p class="tagline">Write in the margins.</p>
+
+    <div id="loading" class="state">
+      <p>Loading...</p>
+    </div>
+
+    <div id="signed-out" class="state" hidden>
+      <p>Sign in with GitHub to comment on rendered markdown in PRs.</p>
+      <button id="sign-in-btn" class="btn btn-primary">Sign in with GitHub</button>
+    </div>
+
+    <div id="signed-in" class="state" hidden>
+      <div class="user-info">
+        <img id="user-avatar" class="avatar" src="" alt="avatar">
+        <span id="user-login" class="login"></span>
+      </div>
+      <p class="hint">Navigate to a PR's "Files changed" tab to see the Review Preview button on markdown files.</p>
+      <button id="sign-out-btn" class="btn btn-secondary">Sign out</button>
+    </div>
+
+    <div id="error" class="state" hidden>
+      <p class="error-msg" id="error-msg"></p>
+      <button id="retry-btn" class="btn btn-primary">Try again</button>
+    </div>
+  </div>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

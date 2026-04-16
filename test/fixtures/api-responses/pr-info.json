@@ -1,0 +1,7 @@
+{
+  "title": "Add RFC-001: Service Architecture",
+  "number": 42,
+  "head": { "sha": "abc123def456" },
+  "base": { "ref": "main" },
+  "html_url": "https://github.com/acme/docs/pull/42"
+}

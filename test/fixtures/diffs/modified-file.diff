@@ -1,0 +1,14 @@
+@@ -1,5 +1,6 @@
+ # Existing Doc
+
+-Old paragraph that was removed.
++New paragraph that was added.
++Another new line.
+
+ Unchanged content below.
+@@ -10,3 +11,5 @@
+ More unchanged.
+
+ Last line stays.
++
++Appended at the end.

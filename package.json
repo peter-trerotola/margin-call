@@ -1,0 +1,31 @@
+{
+  "name": "margin-call",
+  "version": "0.1.0",
+  "description": "Comment on rendered markdown previews in GitHub PRs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:int": "vitest run test/integration",
+    "test:e2e": "vitest run test/e2e",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "github-markdown-css": "5.9.0",
+    "markdown-it": "14.1.1"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@vitest/coverage-v8": "4.1.4",
+    "esbuild": "0.28.0",
+    "jsdom": "29.0.2",
+    "msw": "2.13.2",
+    "puppeteer": "24.40.0",
+    "typescript": "6.0.2",
+    "vitest": "4.1.4"
+  }
+}
