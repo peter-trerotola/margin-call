@@ -1,6 +1,10 @@
 node_modules/
 dist/
 margin-call.zip
+margin-call-*.zip
 .env
 *.log
 coverage/
+
+# macOS Finder metadata
+.DS_Store
