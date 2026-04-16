@@ -41,8 +41,31 @@ export function groupCommentsIntoThreads(
 }
 
 /**
- * Map comment threads to their corresponding DOM elements using line ranges.
- * Returns a map of element → threads anchored to that element.
+ * Split threads into file-level (no line anchor) and line-level (anchored
+ * to a specific line in the diff). File-level threads are displayed in a
+ * separate section of the panel, not inline.
+ */
+export function partitionThreadsByLevel(threads: CommentThread[]): {
+  fileLevel: CommentThread[];
+  lineLevel: CommentThread[];
+} {
+  const fileLevel: CommentThread[] = [];
+  const lineLevel: CommentThread[] = [];
+  for (const thread of threads) {
+    if (thread.root.line === null) {
+      fileLevel.push(thread);
+    } else {
+      lineLevel.push(thread);
+    }
+  }
+  return { fileLevel, lineLevel };
+}
+
+/**
+ * Map line-level comment threads to their corresponding DOM elements using
+ * line ranges. Returns a map of element → threads anchored to that element.
+ * File-level threads (line === null) are excluded; use partitionThreadsByLevel
+ * to get them.
  */
 export function mapThreadsToElements(
   threads: CommentThread[],

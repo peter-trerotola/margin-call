@@ -135,6 +135,42 @@ describe('GitHub API client', () => {
     expect(callBody.start_line).toBeUndefined();
   });
 
+  it('postComment sends correct body for file-level comment (subject_type: file)', async () => {
+    const mockFetch = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        id: 99,
+        body: 'File-level note',
+        line: null,
+        start_line: null,
+        path: 'docs/rfc.md',
+        user: { login: 'user', avatar_url: '' },
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+      headers: new Headers(),
+    }));
+    globalThis.fetch = mockFetch as unknown as typeof fetch;
+
+    const { postComment } = await import('../../src/panel/github-api.js');
+    await postComment({
+      owner: 'o',
+      repo: 'r',
+      pull_number: 1,
+      body: 'File-level note',
+      commit_id: 'sha123',
+      path: 'docs/rfc.md',
+      subject_type: 'file',
+    });
+
+    const callBody = JSON.parse(mockFetch.mock.calls[0][1]?.body as string);
+    expect(callBody.subject_type).toBe('file');
+    expect(callBody.line).toBeUndefined();
+    expect(callBody.side).toBeUndefined();
+    expect(callBody.start_line).toBeUndefined();
+    expect(callBody.body).toBe('File-level note');
+    expect(callBody.path).toBe('docs/rfc.md');
+  });
+
   it('postComment sends correct body for multi-line comment', async () => {
     const mockFetch = vi.fn(async () => ({
       ok: true,
