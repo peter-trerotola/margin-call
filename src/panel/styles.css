@@ -95,6 +95,41 @@ body {
   }
 }
 
+/* Mermaid diagrams */
+.markdown-body .mermaid-diagram {
+  margin: 16px 0;
+  padding: 16px;
+  background: #f6f8fa;
+  border: 1px solid #d0d7de;
+  border-radius: 6px;
+  overflow-x: auto;
+  text-align: center;
+}
+
+.markdown-body .mermaid-diagram svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-body .mermaid-diagram.mermaid-error {
+  background: #ffebe9;
+  border-color: #cf222e;
+  text-align: left;
+}
+
+.markdown-body .mermaid-error .mermaid-error-header {
+  color: #cf222e;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.markdown-body .mermaid-error .mermaid-error-body {
+  color: #cf222e;
+  background: transparent;
+  padding: 0;
+  margin: 0 0 8px;
+}
+
 /* Diff visualization on rendered markdown */
 .markdown-body .mc-has-additions {
   position: relative;

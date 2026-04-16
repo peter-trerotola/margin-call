@@ -11,6 +11,7 @@ import {
 } from './renderer.js';
 import { parseDiff } from './diff-parser.js';
 import { setupReviewUI } from './review-ui.js';
+import { renderMermaidBlocks } from './mermaid.js';
 
 /** Parse query params from the current URL. */
 function getParams(): {
@@ -65,6 +66,12 @@ async function init(): Promise<void> {
 
     // Render markdown (sanitized via DOMPurify in renderMarkdown)
     contentEl.innerHTML = renderMarkdown(content);
+
+    // Replace fenced ```mermaid code blocks with rendered SVGs.
+    // Done BEFORE buildLineRangeMap so the SVG wrappers (which carry the
+    // source-line attrs) are part of the map.
+    await renderMermaidBlocks(contentEl);
+
     const lineRanges = buildLineRangeMap(contentEl);
 
     // Compute commentable / added lines from this file's patch
