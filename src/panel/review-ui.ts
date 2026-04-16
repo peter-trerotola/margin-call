@@ -44,14 +44,19 @@ export interface ReviewUI {
   destroy(): void;
 }
 
-/** Position the floating comment button near a selection rectangle. */
+/**
+ * Position the floating comment button near a selection rectangle.
+ * Uses viewport coordinates because the button is `position: fixed`.
+ * getBoundingClientRect() also returns viewport-relative coords, so
+ * we use rect values directly without adding window.scrollY/scrollX.
+ */
 function positionCommentButton(
   button: HTMLButtonElement,
   rect: DOMRect
 ): void {
   const margin = 4;
-  button.style.top = `${window.scrollY + rect.bottom + margin}px`;
-  button.style.left = `${window.scrollX + rect.left}px`;
+  button.style.top = `${rect.bottom + margin}px`;
+  button.style.left = `${rect.left}px`;
   button.hidden = false;
 }
 
