@@ -76,7 +76,6 @@ async function init(): Promise<void> {
     markDiffState(lineRanges, addedLines, commentableLines);
 
     // Render a legend bar so reviewers know what's what
-    const filePathEl = document.getElementById('file-path')!;
     const legend = document.createElement('span');
     legend.className = 'diff-legend';
     legend.innerHTML =
