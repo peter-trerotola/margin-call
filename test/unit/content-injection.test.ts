@@ -182,4 +182,36 @@ describe('extractFilePath from tooltip-only file headers', () => {
     // extractor has to pick it up.
     expect(extractFilePath(container)).toBe('src/app.ts');
   });
+
+  it('extracts a path from a descendant aria-label attribute', () => {
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<button aria-label="View file docs/SAMPLE_TRD.md"></button>' +
+      '<div>+105 lines added</div>';
+    expect(extractFilePath(container)).toBe('docs/SAMPLE_TRD.md');
+  });
+
+  it('extracts a path from a descendant href attribute', () => {
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<a href="/owner/repo/blob/abc/docs/SAMPLE_TRD.md">view raw</a>';
+    expect(extractFilePath(container)).toBe('docs/SAMPLE_TRD.md');
+  });
+
+  it('extracts a path from a leaf text containing the path with diff stats', () => {
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<span>docs/SAMPLE_TRD.md +105 -0</span><span>Viewed</span>';
+    expect(extractFilePath(container)).toBe('docs/SAMPLE_TRD.md');
+  });
+
+  it('prefers the longest matching path when multiple candidates exist', () => {
+    // The same file may appear multiple ways: a basename in one element
+    // and a full path in another. Prefer the full path (more specific).
+    const container = document.createElement('div');
+    container.innerHTML =
+      '<span>SAMPLE_TRD.md</span>' +
+      '<a href="/x/y/blob/sha/docs/SAMPLE_TRD.md">link</a>';
+    expect(extractFilePath(container)).toBe('docs/SAMPLE_TRD.md');
+  });
 });
