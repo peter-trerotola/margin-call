@@ -93,74 +93,23 @@ function createReviewButton(
   return btn;
 }
 
-interface FileContainerMatch {
-  container: Element;
-  /** The path extracted when we matched this container, or null if it has to be re-derived via extractFilePath. */
-  knownPath: string | null;
-}
-
 /**
- * Find all file containers in the diff view. Two strategies:
+ * Strategy for finding file containers in a GitHub PR diff view:
  *
- * 1. Known selectors: GitHub's stable (current + legacy) DOM markers.
- *    When GitHub ships a new diff view shape, this list goes stale.
+ * 1. **Known selectors** (`findKnownContainers`): GitHub's stable DOM
+ *    markers (current + legacy). When GitHub ships a new view shape,
+ *    this list goes stale.
  *
- * 2. Leaf-walk fallback: find every leaf element whose visible text looks
- *    like a markdown file path, then walk up to the nearest ancestor that
- *    represents a "file row" (substantial height + contains other content
- *    beyond the path). This is resilient to class-name changes because it
- *    only looks at DOM shape, not specific classes.
+ * 2. **Leaf-walk fallback** (`findMarkdownPathLeaves` + `walkToContainer`):
+ *    find every leaf element whose visible text looks like a markdown file
+ *    path, then walk up to the nearest ancestor that represents a "file row"
+ *    (substantial size, not the whole page). Resilient to class-name changes
+ *    because it only uses DOM shape.
  *
- * Known selectors run first; the fallback only fires if they produced nothing.
+ * `injectButtons` runs both paths on every invocation so we cover both
+ * markdown files in known-shaped containers AND markdown files whose
+ * containers are currently missed by the hardcoded selectors.
  */
-function findFileContainers(): FileContainerMatch[] {
-  const selectorGroups = [
-    // New "Preview" diff view (React, CSS Modules with hashed class names)
-    '[class*="PullRequestDiffsList-module__diffEntry"]',
-    // Classic file wrapper with path-as-attribute
-    '[data-tagsearch-path]',
-    // Other newer containers
-    '[data-details-container-group="file"]',
-    'copilot-diff-entry',
-    // Legacy wrapper
-    '.file',
-  ];
-  const seen = new Set<Element>();
-  const matches: FileContainerMatch[] = [];
-  for (const sel of selectorGroups) {
-    for (const el of document.querySelectorAll(sel)) {
-      if (!seen.has(el)) {
-        seen.add(el);
-        matches.push({ container: el, knownPath: null });
-      }
-    }
-  }
-
-  if (matches.length > 0) return matches;
-
-  // Fallback: find markdown-looking leaf elements and walk up to the
-  // nearest "file row" ancestor.
-  const mdLeaves = findMarkdownPathLeaves();
-  let fallbackSucceeded = 0;
-  let fallbackFailed = 0;
-  for (const { leaf, path } of mdLeaves) {
-    const container = walkToContainer(leaf);
-    if (container && !seen.has(container)) {
-      seen.add(container);
-      matches.push({ container, knownPath: path });
-      fallbackSucceeded++;
-    } else if (!container) {
-      fallbackFailed++;
-    }
-  }
-  if (mdLeaves.length > 0) {
-    console.log(
-      `${LOG_PREFIX} fallback leaf-walk: ${fallbackSucceeded} container(s) found, ${fallbackFailed} leaf(s) had no viable ancestor, ${mdLeaves.length - fallbackSucceeded - fallbackFailed} duplicate(s) skipped`
-    );
-  }
-
-  return matches;
-}
 
 interface MarkdownLeaf {
   leaf: Element;
@@ -367,6 +316,11 @@ function logDomDiagnostic(): void {
 
 let diagnosticLogged = '';
 
+// Throttle: only log a status line when the SITUATION changes, not on
+// every MutationObserver tick. Keeps the console readable while still
+// surfacing every distinct state.
+let lastStatusKey = '';
+
 /** Inject buttons into all visible markdown file headers. */
 function injectButtons(): void {
   const prInfo = parsePrUrl(window.location.href);
@@ -375,64 +329,123 @@ function injectButtons(): void {
   // Log DOM diagnostic once per URL — invaluable for debugging selector mismatches.
   if (diagnosticLogged !== window.location.href) {
     diagnosticLogged = window.location.href;
-    // Defer slightly so React/Turbo has time to render
     setTimeout(logDomDiagnostic, 1500);
   }
 
-  const matches = findFileContainers();
-  if (matches.length === 0) {
-    return;
-  }
+  // Phase 1: try known selectors
+  const knownMatches = findKnownContainers();
+  let knownInjected = 0;
+  let knownExisting = 0;
+  let knownNoPath = 0;
+  let knownNonMd = 0;
 
-  let injected = 0;
-  let skippedExisting = 0;
-  let skippedNonMarkdown = 0;
-  let usedFallback = false;
-
-  for (const { container, knownPath } of matches) {
+  for (const container of knownMatches) {
     if (container.querySelector(`[${BUTTON_ATTR}]`)) {
-      skippedExisting++;
+      knownExisting++;
       continue;
     }
-
-    const filePath = knownPath ?? extractFilePath(container);
-    if (!filePath) continue;
-
+    const filePath = extractFilePath(container);
+    if (!filePath) {
+      knownNoPath++;
+      continue;
+    }
     if (!isMarkdownFile(filePath)) {
-      skippedNonMarkdown++;
+      knownNonMd++;
       continue;
     }
+    injectInto(container, filePath, prInfo);
+    knownInjected++;
+  }
 
-    if (knownPath !== null) {
-      // Container came from the leaf-walk fallback, not a known selector
-      usedFallback = true;
+  // Phase 2: always try the leaf-walk fallback for any markdown leaf NOT
+  // already covered by a known-selector container. Runs unconditionally so
+  // that even when known selectors match non-markdown files (or fail
+  // extractFilePath), we still find the markdown ones.
+  const leaves = findMarkdownPathLeaves();
+  let fallbackInjected = 0;
+  let fallbackNoContainer = 0;
+  let fallbackAlreadyCovered = 0;
+
+  for (const { leaf, path } of leaves) {
+    if (!isMarkdownFile(path)) continue;
+    // Skip leaves that live inside a container we already handled.
+    const alreadyInKnown = knownMatches.some((c) => c.contains(leaf));
+    if (alreadyInKnown) {
+      fallbackAlreadyCovered++;
+      continue;
     }
-
-    const btn = createReviewButton(
-      prInfo.owner,
-      prInfo.repo,
-      prInfo.pull,
-      filePath
-    );
-
-    const target = findActionBar(container);
-    target.prepend(btn);
-    injected++;
+    const container = walkToContainer(leaf);
+    if (!container) {
+      fallbackNoContainer++;
+      continue;
+    }
+    if (container.querySelector(`[${BUTTON_ATTR}]`)) {
+      continue;
+    }
+    injectInto(container, path, prInfo);
+    fallbackInjected++;
   }
 
-  if (injected > 0) {
-    const suffix = usedFallback
-      ? ' [fallback: ancestor-walk — known selectors matched nothing]'
-      : '';
-    console.log(
-      `${LOG_PREFIX} injected ${injected} Review Preview button(s) ` +
-        `(${skippedExisting} already present, ${skippedNonMarkdown} non-markdown files skipped)${suffix}`
-    );
-  } else if (matches.length > 0) {
-    console.debug(
-      `${LOG_PREFIX} no markdown files found among ${matches.length} file container(s)`
-    );
+  const totalInjected = knownInjected + fallbackInjected;
+  const statusKey = [
+    knownMatches.length,
+    knownInjected,
+    knownNoPath,
+    knownNonMd,
+    knownExisting,
+    leaves.length,
+    fallbackInjected,
+    fallbackNoContainer,
+    fallbackAlreadyCovered,
+  ].join(',');
+
+  if (statusKey === lastStatusKey) return;
+  lastStatusKey = statusKey;
+
+  const parts = [
+    `known(matches=${knownMatches.length}, injected=${knownInjected}, no_path=${knownNoPath}, non_md=${knownNonMd}, existing=${knownExisting})`,
+    `fallback(leaves=${leaves.length}, injected=${fallbackInjected}, no_container=${fallbackNoContainer}, already_covered=${fallbackAlreadyCovered})`,
+    `→ total=${totalInjected}`,
+  ];
+  console.log(`${LOG_PREFIX} inject: ${parts.join('  ')}`);
+}
+
+/** Inject a Review Preview button into the action bar of a container. */
+function injectInto(
+  container: Element,
+  filePath: string,
+  prInfo: { owner: string; repo: string; pull: number }
+): void {
+  const btn = createReviewButton(
+    prInfo.owner,
+    prInfo.repo,
+    prInfo.pull,
+    filePath
+  );
+  const target = findActionBar(container);
+  target.prepend(btn);
+}
+
+/** Run ONLY the known-selector path (no leaf-walk). */
+function findKnownContainers(): Element[] {
+  const selectorGroups = [
+    '[class*="PullRequestDiffsList-module__diffEntry"]',
+    '[data-tagsearch-path]',
+    '[data-details-container-group="file"]',
+    'copilot-diff-entry',
+    '.file',
+  ];
+  const seen = new Set<Element>();
+  const containers: Element[] = [];
+  for (const sel of selectorGroups) {
+    for (const el of document.querySelectorAll(sel)) {
+      if (!seen.has(el)) {
+        seen.add(el);
+        containers.push(el);
+      }
+    }
   }
+  return containers;
 }
 
 console.log(
