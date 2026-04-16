@@ -91,8 +91,8 @@ chrome.runtime.sendMessage({ type: 'logout' })
 
 #### Storage
 
-**Key:** `marginCall:token`
-**Key:** `marginCall:user`
+**Key:** `github_token` (raw OAuth access token)
+**Key:** `github_user` (cached `{ login, avatar_url }` for the authenticated user)
 
 Values stored in `chrome.storage.local`, accessible only to the extension. Not sent to any server beyond GitHub's API.
 

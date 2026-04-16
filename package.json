@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "dompurify": "3.4.0",
     "github-markdown-css": "5.9.0",
     "markdown-it": "14.1.1"
   },

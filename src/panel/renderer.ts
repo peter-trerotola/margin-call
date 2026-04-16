@@ -1,4 +1,5 @@
 import MarkdownIt from 'markdown-it';
+import DOMPurify from 'dompurify';
 
 export interface LineRange {
   element: Element;
@@ -103,6 +104,8 @@ function sourceMapPlugin(md: MarkdownIt): void {
 /** Create a configured markdown-it instance with source mapping. */
 export function createRenderer(): MarkdownIt {
   const md = new MarkdownIt({
+    // Raw HTML in markdown IS passed through, but output is sanitized with
+    // DOMPurify in renderMarkdown() before insertion. See security note there.
     html: true,
     linkify: true,
     typographer: true,
@@ -111,10 +114,25 @@ export function createRenderer(): MarkdownIt {
   return md;
 }
 
-/** Render markdown source to HTML with source line annotations. */
+/**
+ * Render markdown source to sanitized HTML with source line annotations.
+ *
+ * SECURITY: The markdown being rendered comes from PR files — i.e., untrusted
+ * user content. A malicious PR author could embed `<script>` or event handlers.
+ * Since the rendered HTML is set via innerHTML in the extension's
+ * chrome-extension:// origin (which has access to chrome.storage.local and the
+ * user's OAuth token), unsanitized HTML would be a token theft vector.
+ *
+ * DOMPurify strips <script>, javascript: URLs, and event-handler attributes
+ * while preserving safe HTML tags (kbd, details, summary, etc.) and our own
+ * data-source-line / data-source-line-end attributes.
+ */
 export function renderMarkdown(source: string): string {
   const md = createRenderer();
-  return md.render(source);
+  const rawHtml = md.render(source);
+  return DOMPurify.sanitize(rawHtml, {
+    ADD_ATTR: ['data-source-line', 'data-source-line-end', 'target'],
+  });
 }
 
 /**

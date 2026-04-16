@@ -191,7 +191,9 @@ describe('createRenderer', () => {
     expect(typeof md.render).toBe('function');
   });
 
-  it('supports HTML in markdown', () => {
+  it('passes safe HTML through the raw renderer', () => {
+    // The raw renderer (createRenderer) preserves HTML; sanitization
+    // happens in renderMarkdown.
     const md = createRenderer();
     const html = md.render('<div class="custom">Content</div>\n');
     expect(html).toContain('custom');
@@ -201,5 +203,50 @@ describe('createRenderer', () => {
     const md = createRenderer();
     const html = md.render('Visit https://example.com\n');
     expect(html).toContain('href="https://example.com"');
+  });
+});
+
+describe('XSS protection (renderMarkdown)', () => {
+  it('strips <script> tags from markdown', () => {
+    const malicious = 'Hello\n\n<script>window.pwned = true</script>\n';
+    const html = renderMarkdown(malicious);
+    expect(html).not.toContain('<script');
+    expect(html).not.toContain('pwned');
+  });
+
+  it('strips inline event handlers', () => {
+    const malicious = '<img src="x" onerror="alert(1)">\n';
+    const html = renderMarkdown(malicious);
+    expect(html).not.toContain('onerror');
+    expect(html).not.toContain('alert(1)');
+  });
+
+  it('strips javascript: URLs from raw HTML <a href>', () => {
+    // Raw HTML in markdown is the real attack vector for javascript: URLs —
+    // markdown-it itself already refuses to build links for `javascript:`
+    // in markdown link syntax, but a raw <a href="javascript:..."> would
+    // slip through without DOMPurify.
+    const malicious = '<a href="javascript:alert(1)">click</a>\n';
+    const html = renderMarkdown(malicious);
+    expect(html).not.toMatch(/href=["']javascript:/i);
+  });
+
+  it('strips javascript: URLs from data: URLs in <a href>', () => {
+    const malicious = '<a href="data:text/html,<script>alert(1)</script>">click</a>\n';
+    const html = renderMarkdown(malicious);
+    expect(html).not.toMatch(/href=["']data:text\/html/i);
+  });
+
+  it('preserves safe HTML tags like <kbd> and <details>', () => {
+    const src = 'Press <kbd>Ctrl</kbd>+<kbd>C</kbd>\n\n<details><summary>More</summary>hidden</details>\n';
+    const html = renderMarkdown(src);
+    expect(html).toContain('<kbd>');
+    expect(html).toContain('<details>');
+    expect(html).toContain('<summary>');
+  });
+
+  it('preserves data-source-line attributes through sanitization', () => {
+    const html = renderMarkdown('# Title\n\nParagraph\n');
+    expect(html).toContain('data-source-line');
   });
 });

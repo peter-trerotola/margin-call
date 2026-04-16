@@ -1,4 +1,4 @@
-import { fetchPrInfo, fetchFileContent, fetchPrFiles } from './github-api.js';
+import { fetchPrInfo, fetchFileContent } from './github-api.js';
 import { renderMarkdown } from './renderer.js';
 
 /** Parse query params from the current URL. */
@@ -33,15 +33,11 @@ async function init() {
     contentEl.innerHTML = '<p>Loading...</p>';
     filePathEl.textContent = path;
 
-    // Fetch PR info and file content in parallel
-    const [prInfo, content] = await Promise.all([
-      fetchPrInfo(owner, repo, pull),
-      (async () => {
-        // Need head SHA for content fetch — get PR info first
-        const pr = await fetchPrInfo(owner, repo, pull);
-        return fetchFileContent(owner, repo, path, pr.head_sha);
-      })(),
-    ]);
+    // Fetch PR metadata first — we need head_sha before we can request the
+    // file at the correct ref. Sequential rather than parallel because the
+    // file fetch strictly depends on the head SHA.
+    const prInfo = await fetchPrInfo(owner, repo, pull);
+    const content = await fetchFileContent(owner, repo, path, prInfo.head_sha);
 
     prTitleEl.textContent = `#${prInfo.number} ${prInfo.title}`;
     prLinkEl.href = prInfo.html_url;
