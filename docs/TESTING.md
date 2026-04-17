@@ -447,16 +447,20 @@ it('handles API errors gracefully', async () => {
 
 ## Coverage Goals
 
-| Module | Target | Rationale |
-|--------|--------|-----------|
-| diff-parser.ts | 95%+ | Core logic, must be bulletproof |
-| renderer.ts | 95%+ | Source mapping is critical |
-| selection.ts | 95%+ | Line mapping must be accurate |
-| github-api.ts | 90%+ | API integration, but framework handles HTTP |
-| storage.ts | 90%+ | Simple wrapper, but important for auth |
-| content/index.ts | 85%+ | UI and DOM manipulation, harder to test |
-| comments.ts | 80%+ | UI rendering, tested via E2E |
-| popup/index.ts | 75%+ | UI, mostly manual testing |
+| Module | Target | Status |
+|--------|--------|--------|
+| panel/diff-parser.ts | 95%+ | Unit tests in `test/unit/diff-parser.test.ts` |
+| panel/renderer.ts | 95%+ | Unit tests in `test/unit/renderer.test.ts` |
+| panel/selection.ts | 95%+ | Unit tests in `test/unit/selection.test.ts` |
+| panel/github-api.ts | 90%+ | Unit tests in `test/unit/github-api.test.ts` |
+| shared/storage.ts | 90%+ | Unit tests in `test/unit/storage.test.ts` |
+| content/index.ts | 85%+ | Unit tests in `test/unit/content-injection.test.ts` |
+| panel/mermaid.ts | 85%+ | Unit tests in `test/unit/mermaid.test.ts` |
+| panel/comments.ts | 80%+ | Integration tests in `test/integration/comment-display.test.ts` |
+| panel/review-ui.ts | 80%+ | Integration tests in `test/integration/review-ui.test.ts` |
+| panel/index.ts | -- | Not yet tested -- planned |
+| popup/index.ts | -- | Not yet tested -- planned |
+| background/index.ts | -- | Not yet tested -- planned (OAuth flow tested indirectly via `test/integration/oauth-flow.test.ts`) |
 
 Run `make test-coverage` to see current coverage.
 

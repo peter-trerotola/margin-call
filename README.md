@@ -28,7 +28,7 @@ It also:
 
 ## Install
 
-Coming soon to the Chrome Web Store. In the meantime, see [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) for sideload instructions.
+Download the latest release from [GitHub Releases](https://github.com/peter-trerotola/margin-call/releases) and sideload via `chrome://extensions`. See [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) for instructions.
 
 ## How it works
 

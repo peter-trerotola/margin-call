@@ -14,7 +14,7 @@ import { setupReviewUI } from './review-ui.js';
 import { renderMermaidBlocks } from './mermaid.js';
 
 /** Parse query params from the current URL. */
-function getParams(): {
+export function getParams(): {
   owner: string;
   repo: string;
   pull: number;

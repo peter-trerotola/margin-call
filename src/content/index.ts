@@ -178,9 +178,6 @@ function injectButtons(): void {
     target.prepend(createReviewButton(prInfo.owner, prInfo.repo, prInfo.pull, path));
   }
 
-  if (containers.length > 0) {
-    console.log(`${LOG_PREFIX} injected ${containers.length} button(s)`);
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -193,8 +190,6 @@ function scheduleInject(): void {
   if (debounceTimer) clearTimeout(debounceTimer);
   debounceTimer = setTimeout(injectButtons, 300);
 }
-
-console.log(`${LOG_PREFIX} content script loaded on ${window.location.href}`);
 
 // Initial inject (debounced so React has time to render)
 scheduleInject();
