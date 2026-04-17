@@ -265,11 +265,11 @@ npm run typecheck
 ### Debugging Chrome API Calls
 
 The extension uses:
-- `chrome.identity.launchWebAuthFlow()` — OAuth
-- `chrome.storage.local` — Token storage
-- `chrome.runtime.onMessage` — Inter-script messaging
-- `chrome.tabs.create()` — Opening the panel
-- `chrome.runtime.getURL()` — Asset paths
+- `fetch()` to `https://github.com/login/device/code` and `https://github.com/login/oauth/access_token` — Device Flow OAuth (no `chrome.identity` needed)
+- `chrome.storage.local` — token and user profile storage
+- `chrome.runtime.sendMessage()` / `chrome.runtime.onMessage` — inter-script messaging (content script to background, popup to background)
+- `chrome.tabs.create()` — open panel tabs and Device Flow verification pages
+- `chrome.runtime.getURL()` — construct extension-internal URLs for panel HTML and assets
 
 To mock Chrome APIs in tests, see `test/mocks/chrome.ts`.
 

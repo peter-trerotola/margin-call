@@ -1,0 +1,8 @@
+# Default owner for everything
+* @peter-trerotola
+
+# Security-sensitive files require explicit review
+src/background/     @peter-trerotola
+src/panel/renderer.ts @peter-trerotola
+src/panel/mermaid.ts @peter-trerotola
+SECURITY.md         @peter-trerotola
