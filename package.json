@@ -25,8 +25,8 @@
     "@vitest/coverage-v8": "4.1.4",
     "esbuild": "0.28.0",
     "jsdom": "29.0.2",
-    "msw": "2.13.4",
-    "puppeteer": "24.40.0",
+    "msw": "2.13.2",
+    "puppeteer": "24.41.0",
     "typescript": "6.0.3",
     "vitest": "4.1.4"
   }
