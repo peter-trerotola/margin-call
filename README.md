@@ -2,9 +2,9 @@
 
 > Comment on rendered markdown previews in GitHub PRs. The thing GitHub forgot.
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/nblnlnpacfbabbopcojcmfjmjfpdeifh)](https://chromewebstore.google.com/detail/margin-call/nblnlnpacfbabbopcojcmfjmjfpdeifh)
 [![CI](https://github.com/peter-trerotola/margin-call/actions/workflows/ci.yml/badge.svg)](https://github.com/peter-trerotola/margin-call/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![Manifest V3](https://img.shields.io/badge/Manifest-V3-blue)](./manifest.json)
 
 ## The problem
 
@@ -28,7 +28,9 @@ It also:
 
 ## Install
 
-Download the latest release from [GitHub Releases](https://github.com/peter-trerotola/margin-call/releases) and sideload via `chrome://extensions`. See [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) for instructions.
+**[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/margin-call/nblnlnpacfbabbopcojcmfjmjfpdeifh)**
+
+Or download from [GitHub Releases](https://github.com/peter-trerotola/margin-call/releases) and sideload via `chrome://extensions`.
 
 ## How it works
 
@@ -48,7 +50,6 @@ Your browser does everything. There is no Margin Call server.
 - **[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)** — how the four extension components fit together
 - **[docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md)** — local dev setup (Docker + Make, no Node on host)
 - **[docs/TESTING.md](./docs/TESTING.md)** — test strategy and how to run them
-- **[docs/PUBLISHING.md](./docs/PUBLISHING.md)** — Chrome Web Store submission process
 - **[docs/PRIVACY.md](./docs/PRIVACY.md)** — what data the extension touches (spoiler: not much)
 - **[CONTRIBUTING.md](./CONTRIBUTING.md)** — how to send a PR
 
