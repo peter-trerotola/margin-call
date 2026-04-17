@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/peter-trerotola/margin-call/security/advisories/new
+    about: Report a security vulnerability privately via GitHub Security Advisories.
