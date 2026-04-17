@@ -22,11 +22,10 @@ try {
   const page = await browser.newPage();
 
   for (const size of SIZES) {
-    // High DPR for sharp downscale, then we screenshot at logical size
     await page.setViewport({
       width: size,
       height: size,
-      deviceScaleFactor: 2,
+      deviceScaleFactor: 1,
     });
 
     await page.setContent(
