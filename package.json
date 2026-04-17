@@ -27,7 +27,7 @@
     "jsdom": "29.0.2",
     "msw": "2.13.2",
     "puppeteer": "24.40.0",
-    "typescript": "6.0.2",
+    "typescript": "6.0.3",
     "vitest": "4.1.4"
   }
 }
