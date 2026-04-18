@@ -57,11 +57,17 @@ copyFileSync('src/popup/index.html', `${outdir}/popup/index.html`);
 copyFileSync('src/popup/styles.css', `${outdir}/popup/styles.css`);
 copyFileSync('src/content/styles.css', `${outdir}/content.css`);
 
-// Copy github-markdown-css — the bare `github-markdown.css` auto-switches
-// between light and dark based on prefers-color-scheme.
+// Copy github-markdown-css
 const ghCssPath = 'node_modules/github-markdown-css/github-markdown.css';
 if (existsSync(ghCssPath)) {
   copyFileSync(ghCssPath, `${outdir}/panel/github-markdown.css`);
+}
+
+// Copy highlight.js theme (github-dark auto-switches isn't available,
+// so we ship github-dark which works in both modes with our CSS vars)
+const hljsCssPath = 'node_modules/highlight.js/styles/github-dark.min.css';
+if (existsSync(hljsCssPath)) {
+  copyFileSync(hljsCssPath, `${outdir}/panel/hljs.css`);
 }
 
 // Copy icons (PNGs only — the SVG source isn't needed in the published bundle)

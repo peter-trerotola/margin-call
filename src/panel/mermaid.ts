@@ -77,7 +77,51 @@ export async function renderMermaidBlocks(
 
     try {
       const { svg } = await mermaid.render(id, source);
-      wrapper.innerHTML = svg;
+
+      // Toolbar with zoom/pan controls (similar to GitHub's Mermaid preview)
+      const toolbar = document.createElement('div');
+      toolbar.className = 'mermaid-toolbar';
+
+      const zoomInBtn = document.createElement('button');
+      zoomInBtn.type = 'button';
+      zoomInBtn.textContent = '+';
+      zoomInBtn.title = 'Zoom in';
+
+      const zoomOutBtn = document.createElement('button');
+      zoomOutBtn.type = 'button';
+      zoomOutBtn.textContent = '-';
+      zoomOutBtn.title = 'Zoom out';
+
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button';
+      resetBtn.textContent = 'Reset';
+      resetBtn.title = 'Reset zoom';
+
+      const fullscreenBtn = document.createElement('button');
+      fullscreenBtn.type = 'button';
+      fullscreenBtn.textContent = 'Fullscreen';
+      fullscreenBtn.title = 'Toggle fullscreen';
+
+      toolbar.append(zoomOutBtn, zoomInBtn, resetBtn, fullscreenBtn);
+
+      const svgContainer = document.createElement('div');
+      svgContainer.className = 'mermaid-svg-container';
+      svgContainer.innerHTML = svg;
+
+      let scale = 1;
+      const applyZoom = () => {
+        svgContainer.style.transform = `scale(${scale})`;
+        svgContainer.style.transformOrigin = 'center top';
+      };
+
+      zoomInBtn.addEventListener('click', () => { scale = Math.min(scale + 0.25, 3); applyZoom(); });
+      zoomOutBtn.addEventListener('click', () => { scale = Math.max(scale - 0.25, 0.25); applyZoom(); });
+      resetBtn.addEventListener('click', () => { scale = 1; applyZoom(); });
+      fullscreenBtn.addEventListener('click', () => {
+        openLightbox(svg);
+      });
+
+      wrapper.append(toolbar, svgContainer);
     } catch (err) {
       // Surface the error inline rather than crashing the whole panel.
       wrapper.classList.add('mermaid-error');
@@ -101,4 +145,63 @@ export async function renderMermaidBlocks(
   }
 
   return rendered;
+}
+
+/**
+ * Open a Mermaid SVG in a fullscreen lightbox overlay with its own
+ * zoom/pan controls and an Escape-to-close handler.
+ */
+function openLightbox(svg: string): void {
+  const overlay = document.createElement('div');
+  overlay.className = 'mermaid-lightbox';
+
+  const topBar = document.createElement('div');
+  topBar.className = 'mermaid-lightbox-topbar';
+
+  const zoomOutBtn = document.createElement('button');
+  zoomOutBtn.type = 'button';
+  zoomOutBtn.textContent = '-';
+  zoomOutBtn.title = 'Zoom out';
+
+  const zoomInBtn = document.createElement('button');
+  zoomInBtn.type = 'button';
+  zoomInBtn.textContent = '+';
+  zoomInBtn.title = 'Zoom in';
+
+  const resetBtn = document.createElement('button');
+  resetBtn.type = 'button';
+  resetBtn.textContent = 'Reset';
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.className = 'mermaid-lightbox-close';
+
+  topBar.append(zoomOutBtn, zoomInBtn, resetBtn, closeBtn);
+
+  const svgContainer = document.createElement('div');
+  svgContainer.className = 'mermaid-lightbox-body';
+  svgContainer.innerHTML = svg;
+
+  overlay.append(topBar, svgContainer);
+  document.body.appendChild(overlay);
+
+  let scale = 1;
+  const applyZoom = () => {
+    const svgEl = svgContainer.querySelector('svg');
+    if (svgEl) {
+      svgEl.style.transform = `scale(${scale})`;
+      svgEl.style.transformOrigin = 'center center';
+    }
+  };
+
+  zoomInBtn.addEventListener('click', () => { scale = Math.min(scale + 0.25, 5); applyZoom(); });
+  zoomOutBtn.addEventListener('click', () => { scale = Math.max(scale - 0.25, 0.1); applyZoom(); });
+  resetBtn.addEventListener('click', () => { scale = 1; applyZoom(); });
+
+  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+  closeBtn.addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+  const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+  document.addEventListener('keydown', onKey);
 }

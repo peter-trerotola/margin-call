@@ -14,6 +14,8 @@ function setupDom(markdown: string, commentableLines: Set<number>) {
   const dom = new JSDOM(
     `<!DOCTYPE html><html><body>
        <div id="content">${html}</div>
+       <div id="inline-comments"></div>
+       <div id="file-comments" hidden></div>
        <button id="comment-button" hidden></button>
      </body></html>`,
     { pretendToBeVisual: true }
@@ -25,8 +27,13 @@ function setupDom(markdown: string, commentableLines: Set<number>) {
   const commentButton = dom.window.document.getElementById(
     'comment-button'
   ) as HTMLButtonElement;
+  const inlineCommentsContainer = dom.window.document.getElementById(
+    'inline-comments'
+  ) as HTMLElement;
+  const fileCommentsContainer = dom.window.document.getElementById(
+    'file-comments'
+  ) as HTMLElement;
 
-  // Make jsdom globals available to selection.ts and review-ui.ts
   const g = globalThis as unknown as Record<string, unknown>;
   g.window = dom.window;
   g.document = dom.window.document;
@@ -40,6 +47,8 @@ function setupDom(markdown: string, commentableLines: Set<number>) {
     doc: dom.window.document,
     container,
     commentButton,
+    inlineCommentsContainer,
+    fileCommentsContainer,
     lineRanges,
     commentableLines,
   };
@@ -51,9 +60,9 @@ describe('setupReviewUI', () => {
     vi.restoreAllMocks();
   });
 
-  it('renders existing comments inline on their anchored elements', () => {
+  it('renders existing comments in the right sidebar', () => {
     const markdown = '# Title\n\n## Section One\n\nParagraph here.\n';
-    const { container, commentButton, lineRanges, commentableLines } =
+    const { container, commentButton, inlineCommentsContainer, fileCommentsContainer, lineRanges, commentableLines } =
       setupDom(markdown, new Set([1, 2, 3, 4, 5]));
 
     const ui = setupReviewUI({
@@ -64,6 +73,8 @@ describe('setupReviewUI', () => {
       commit_id: 'sha',
       container,
       commentButton,
+      fileCommentsContainer,
+      inlineCommentsContainer,
       lineRanges,
       commentableLines,
     });
@@ -92,21 +103,22 @@ describe('setupReviewUI', () => {
 
     ui.displayComments(comments);
 
-    // Thread container appears in the DOM
-    const threads = container.parentElement!.querySelectorAll(
-      '.comment-thread'
-    );
+    // Comments render in the right sidebar, not inline
+    const threads = inlineCommentsContainer.querySelectorAll('.comment-thread');
     expect(threads.length).toBeGreaterThan(0);
-    const threadHtml = threads[0].innerHTML;
-    expect(threadHtml).toContain('Existing comment');
-    expect(threadHtml).toContain('Reply');
+    expect(threads[0].innerHTML).toContain('Existing comment');
+    expect(threads[0].innerHTML).toContain('Reply');
+
+    // Anchor text gets a highlight
+    const highlighted = container.querySelectorAll('.mc-has-comment');
+    expect(highlighted.length).toBeGreaterThan(0);
 
     ui.destroy();
   });
 
   it('shows the floating comment button for a commentable selection', () => {
     const markdown = '# Title\n\nCommentable paragraph.\n';
-    const { dom, container, commentButton, lineRanges, commentableLines } =
+    const { dom, container, commentButton, inlineCommentsContainer, fileCommentsContainer, lineRanges, commentableLines } =
       setupDom(markdown, new Set([1, 2, 3]));
 
     setupReviewUI({
@@ -148,7 +160,7 @@ describe('setupReviewUI', () => {
 
   it('keeps the comment button enabled for non-commentable selections (file-level fallback)', () => {
     const markdown = '# Title\n\nNot in the diff.\n';
-    const { dom, container, commentButton, lineRanges } = setupDom(
+    const { dom, container, commentButton, inlineCommentsContainer, fileCommentsContainer, lineRanges } = setupDom(
       markdown,
       new Set() // nothing is commentable
     );
@@ -161,6 +173,8 @@ describe('setupReviewUI', () => {
       commit_id: 'sha',
       container,
       commentButton,
+      inlineCommentsContainer,
+      fileCommentsContainer,
       lineRanges,
       commentableLines: new Set(),
     });
@@ -185,7 +199,7 @@ describe('setupReviewUI', () => {
         expect(commentButton.classList.contains('disabled')).toBe(false);
         expect(commentButton.hidden).toBe(false);
         expect(commentButton.textContent).toBe('Comment on file');
-        expect(commentButton.title).toContain('file-level');
+        expect(commentButton.title).toContain('file');
         resolve();
       }, 10);
     });
@@ -193,7 +207,7 @@ describe('setupReviewUI', () => {
 
   it('hides the button for a collapsed selection', () => {
     const markdown = '# Title\n\nParagraph.\n';
-    const { dom, container, commentButton, lineRanges } = setupDom(
+    const { dom, container, commentButton, inlineCommentsContainer, fileCommentsContainer, lineRanges } = setupDom(
       markdown,
       new Set([1, 2, 3])
     );
@@ -207,6 +221,8 @@ describe('setupReviewUI', () => {
       commit_id: 'sha',
       container,
       commentButton,
+      inlineCommentsContainer,
+      fileCommentsContainer,
       lineRanges,
       commentableLines: new Set([1, 2, 3]),
     });
@@ -233,7 +249,7 @@ describe('setupReviewUI', () => {
 
   it('groups comment threads correctly from grouped comments', () => {
     const markdown = '# Title\n\nPara one.\n\nPara two.\n';
-    const { container, commentButton, lineRanges } = setupDom(
+    const { container, commentButton, inlineCommentsContainer, fileCommentsContainer, lineRanges } = setupDom(
       markdown,
       new Set([1, 2, 3, 4, 5])
     );
@@ -246,6 +262,8 @@ describe('setupReviewUI', () => {
       commit_id: 'sha',
       container,
       commentButton,
+      inlineCommentsContainer,
+      fileCommentsContainer,
       lineRanges,
       commentableLines: new Set([1, 2, 3, 4, 5]),
     });
@@ -274,9 +292,7 @@ describe('setupReviewUI', () => {
     ui.displayComments(comments);
 
     // Two thread containers should exist in the DOM (one per anchor)
-    const threads = container.parentElement!.querySelectorAll(
-      '.comment-thread'
-    );
+    const threads = inlineCommentsContainer.querySelectorAll('.comment-thread');
     expect(threads.length).toBe(2);
   });
 });

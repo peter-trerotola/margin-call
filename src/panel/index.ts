@@ -48,6 +48,9 @@ async function init(): Promise<void> {
   const fileCommentsContainer = document.getElementById(
     'file-comments'
   ) as HTMLElement;
+  const inlineCommentsContainer = document.getElementById(
+    'inline-comments'
+  ) as HTMLElement;
 
   try {
     const { owner, repo, pull, path } = getParams();
@@ -55,7 +58,6 @@ async function init(): Promise<void> {
     contentEl.innerHTML = '<p class="loading">Loading...</p>';
     filePathEl.textContent = path;
 
-    // PR metadata is needed first (for head_sha); everything else runs in parallel after.
     const prInfo = await fetchPrInfo(owner, repo, pull);
     prTitleEl.textContent = `#${prInfo.number} ${prInfo.title}`;
     prLinkEl.href = prInfo.html_url;
@@ -67,35 +69,25 @@ async function init(): Promise<void> {
       fetchPrComments(owner, repo, pull, path),
     ]);
 
-    // Render markdown (sanitized via DOMPurify in renderMarkdown)
     contentEl.innerHTML = renderMarkdown(content);
-
-    // Replace fenced ```mermaid code blocks with rendered SVGs.
-    // Done BEFORE buildLineRangeMap so the SVG wrappers (which carry the
-    // source-line attrs) are part of the map.
     await renderMermaidBlocks(contentEl);
 
     const lineRanges = buildLineRangeMap(contentEl);
 
-    // Compute commentable / added lines from this file's patch
     const thisFile = prFiles.find((f) => f.filename === path);
     const diffResult = parseDiff(thisFile?.patch);
     const { commentableLines, addedLines, added, removed } = diffResult;
 
-    // Visually mark elements with additions / commentable status
     markDiffState(lineRanges, addedLines, commentableLines);
 
-    // Render a legend bar so reviewers know what's what
     const legend = document.createElement('span');
     legend.className = 'diff-legend';
     legend.innerHTML =
       `<span class="diff-stat added">+${added}</span> ` +
-      `<span class="diff-stat removed">−${removed}</span>` +
-      ` <span class="diff-hint">Sections with a green border were added in this PR ` +
-      `and can receive comments.</span>`;
+      `<span class="diff-stat removed">-${removed}</span>` +
+      ` <span class="diff-hint">Green border = added in this PR.</span>`;
     filePathEl.appendChild(legend);
 
-    // Wire up selection → comment button → post comment, plus existing comments
     const ui = setupReviewUI({
       owner,
       repo,
@@ -105,23 +97,18 @@ async function init(): Promise<void> {
       container: contentEl,
       commentButton,
       fileCommentsContainer,
+      inlineCommentsContainer,
       lineRanges,
       commentableLines,
     });
 
     ui.displayComments(existingComments);
 
-    // Reveal the file-comments section if any file-level threads were rendered
     if (fileCommentsContainer.querySelector('.comment-thread')) {
       fileCommentsContainer.hidden = false;
     }
-    // Also reveal it lazily as new file-level comments are posted
     new MutationObserver(() => {
-      if (
-        fileCommentsContainer.querySelector(
-          '.comment-thread, .comment-form'
-        )
-      ) {
+      if (fileCommentsContainer.querySelector('.comment-thread, .comment-form')) {
         fileCommentsContainer.hidden = false;
       }
     }).observe(fileCommentsContainer, { childList: true });

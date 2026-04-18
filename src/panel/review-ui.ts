@@ -1,14 +1,10 @@
 /**
- * Wires up the interactive review UI on the panel page:
- *   - listens for text selections in the markdown container
- *   - shows a floating "Comment" button positioned near the selection
- *   - opens a comment form on click, posts via the GitHub API
- *   - renders existing review comments inline next to their anchored elements
- *   - handles reply flow on existing comment threads
- *
- * This module is the glue between the pure renderer/selection/diff-parser
- * modules and the DOM. It does not own the data-fetching or markdown
- * rendering — those happen in index.ts and are passed in.
+ * Google Docs-style review UI:
+ *   - Inline (line-level) comments render in the RIGHT sidebar, vertically
+ *     aligned with the text they reference. Commented text gets a highlight;
+ *     clicking the highlight flashes the corresponding comment card.
+ *   - File-level comments render in the LEFT sidebar.
+ *   - Text selection → floating "Comment" button → form in the right sidebar.
  */
 import type { LineRange } from './renderer.js';
 import { analyzeSelection, type SelectionResult } from './selection.js';
@@ -34,31 +30,27 @@ export interface ReviewUIContext {
   commit_id: string;
   container: HTMLElement;
   commentButton: HTMLButtonElement;
-  /** Where file-level comments (no line anchor) are rendered. */
   fileCommentsContainer?: HTMLElement;
+  /** Right sidebar where inline comments are rendered. */
+  inlineCommentsContainer?: HTMLElement;
   lineRanges: LineRange[];
   commentableLines: Set<number>;
 }
 
 export interface ReviewUI {
-  /** Display existing review comments — line-level inline, file-level in the file-comments container. */
   displayComments(comments: ReviewComment[]): void;
-  /** Detach event listeners (for tests / teardown). */
   destroy(): void;
 }
 
-/**
- * Position the floating comment button near a selection rectangle.
- * Uses viewport coordinates because the button is `position: fixed`.
- * getBoundingClientRect() also returns viewport-relative coords, so
- * we use rect values directly without adding window.scrollY/scrollX.
- */
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function positionCommentButton(
   button: HTMLButtonElement,
   rect: DOMRect
 ): void {
-  const margin = 4;
-  button.style.top = `${rect.bottom + margin}px`;
+  button.style.top = `${rect.bottom + 4}px`;
   button.style.left = `${rect.left}px`;
   button.hidden = false;
 }
@@ -67,7 +59,6 @@ function hideButton(button: HTMLButtonElement): void {
   button.hidden = true;
 }
 
-/** Render an inline comment form anchored below a specific element. */
 function createCommentForm(opts: {
   selectedText?: string;
   placeholder: string;
@@ -88,9 +79,7 @@ function createCommentForm(opts: {
   cancelBtn.type = 'button';
   cancelBtn.className = 'btn-cancel';
   cancelBtn.textContent = 'Cancel';
-  cancelBtn.addEventListener('click', () => {
-    opts.onCancel();
-  });
+  cancelBtn.addEventListener('click', () => opts.onCancel());
 
   const submitBtn = document.createElement('button');
   submitBtn.type = 'button';
@@ -124,6 +113,30 @@ function createCommentForm(opts: {
   return form;
 }
 
+/**
+ * Add a highlight background to a markdown element that has a comment.
+ * Returns a cleanup function that removes the highlight.
+ */
+function highlightAnchor(anchor: Element, threadId: number): () => void {
+  anchor.classList.add('mc-has-comment');
+  anchor.setAttribute('data-thread-id', String(threadId));
+  return () => {
+    anchor.classList.remove('mc-has-comment');
+    anchor.removeAttribute('data-thread-id');
+  };
+}
+
+/** Flash a comment card in the sidebar to draw attention to it. */
+function flashComment(threadEl: Element): void {
+  threadEl.classList.add('mc-flash');
+  threadEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  setTimeout(() => threadEl.classList.remove('mc-flash'), 1500);
+}
+
+// ---------------------------------------------------------------------------
+// Main setup
+// ---------------------------------------------------------------------------
+
 export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
   const {
     owner,
@@ -134,49 +147,63 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     container,
     commentButton,
     fileCommentsContainer,
+    inlineCommentsContainer,
     lineRanges,
     commentableLines,
   } = ctx;
 
   let currentSelection: SelectionResult | null = null;
-  const threadContainers = new Map<Element, HTMLElement>();
 
-  function ensureThreadContainer(anchor: Element): HTMLElement {
-    const existing = threadContainers.get(anchor);
-    if (existing) return existing;
-    const wrapper = document.createElement('div');
-    wrapper.className = 'comment-thread-container';
-    anchor.insertAdjacentElement('afterend', wrapper);
-    threadContainers.set(anchor, wrapper);
-    return wrapper;
-  }
+  // Map thread ID → sidebar element (for click-to-flash)
+  const threadElements = new Map<number, HTMLElement>();
 
+  // ---------------------------------------------------------------------------
+  // Inline (line-level) comments → RIGHT sidebar
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Render a thread in the right sidebar, positioned to vertically align
+   * with the anchor element in the markdown body.
+   */
   function displayThread(anchor: Element, thread: CommentThread): void {
-    const wrapper = ensureThreadContainer(anchor);
-    const threadEl = document.createElement('div');
-    threadEl.innerHTML = renderThread(thread);
-    const rendered = threadEl.firstElementChild as HTMLElement;
-    wrapper.appendChild(rendered);
+    if (!inlineCommentsContainer) return;
 
-    const replyBtn = rendered.querySelector<HTMLButtonElement>('.reply-btn');
+    const card = document.createElement('div');
+    card.className = 'sidebar-comment';
+    card.setAttribute('data-thread-id', String(thread.root.id));
+    card.innerHTML = renderThread(thread);
+
+    // Position: align top of card with top of anchor element.
+    // Uses a data attribute; CSS uses position:relative on the sidebar
+    // and absolute on each card, with `top` set dynamically.
+    const anchorRect = anchor.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const offsetTop = anchorRect.top - containerRect.top + container.scrollTop;
+    card.style.position = 'absolute';
+    card.style.top = `${offsetTop}px`;
+    card.style.left = '20px';
+    card.style.right = '20px';
+
+    inlineCommentsContainer.appendChild(card);
+    threadElements.set(thread.root.id, card);
+
+    // Highlight the anchor text
+    const removeHighlight = highlightAnchor(anchor, thread.root.id);
+
+    // Reply button
+    const replyBtn = card.querySelector<HTMLButtonElement>('.reply-btn');
     if (replyBtn) {
       replyBtn.addEventListener('click', () => {
         replyBtn.disabled = true;
         const form = createCommentForm({
           placeholder: `Reply to @${thread.root.user.login}`,
           onSubmit: async (body) => {
-            const reply = await postReply(
-              owner,
-              repo,
-              pull,
-              thread.root.id,
-              body
-            );
+            const reply = await postReply(owner, repo, pull, thread.root.id, body);
             thread.replies.push(reply);
             form.remove();
-            // Re-render the thread in place
-            wrapper.removeChild(rendered);
-            threadContainers.delete(anchor);
+            removeHighlight();
+            card.remove();
+            threadElements.delete(thread.root.id);
             displayThread(anchor, thread);
           },
           onCancel: () => {
@@ -189,12 +216,15 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     }
   }
 
-  /** Render a file-level thread in the file-comments container. */
+  // ---------------------------------------------------------------------------
+  // File-level comments → LEFT sidebar
+  // ---------------------------------------------------------------------------
+
   function displayFileLevelThread(thread: CommentThread): void {
     if (!fileCommentsContainer) return;
-    const threadEl = document.createElement('div');
-    threadEl.innerHTML = renderThread(thread);
-    const rendered = threadEl.firstElementChild as HTMLElement;
+    const card = document.createElement('div');
+    card.innerHTML = renderThread(thread);
+    const rendered = card.firstElementChild as HTMLElement;
     fileCommentsContainer.appendChild(rendered);
 
     const replyBtn = rendered.querySelector<HTMLButtonElement>('.reply-btn');
@@ -204,16 +234,9 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
         const form = createCommentForm({
           placeholder: `Reply to @${thread.root.user.login}`,
           onSubmit: async (body) => {
-            const reply = await postReply(
-              owner,
-              repo,
-              pull,
-              thread.root.id,
-              body
-            );
+            const reply = await postReply(owner, repo, pull, thread.root.id, body);
             thread.replies.push(reply);
             form.remove();
-            // Re-render the thread in place
             fileCommentsContainer.removeChild(rendered);
             displayFileLevelThread(thread);
           },
@@ -227,11 +250,14 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Display all comments
+  // ---------------------------------------------------------------------------
+
   function displayComments(comments: ReviewComment[]): void {
     const threads = groupCommentsIntoThreads(comments);
     const { fileLevel, lineLevel } = partitionThreadsByLevel(threads);
 
-    // Inline the line-level threads next to their anchored elements
     const anchorMap = mapThreadsToElements(lineLevel, lineRanges);
     for (const [anchor, anchorThreads] of anchorMap) {
       for (const thread of anchorThreads) {
@@ -239,38 +265,44 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
       }
     }
 
-    // Render file-level threads in the dedicated section
     for (const thread of fileLevel) {
       displayFileLevelThread(thread);
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Click-to-flash: clicking highlighted text scrolls to / flashes the comment
+  // ---------------------------------------------------------------------------
+
+  function onContentClick(e: MouseEvent): void {
+    const target = (e.target as HTMLElement).closest?.('[data-thread-id]');
+    if (!target) return;
+    const threadId = parseInt(target.getAttribute('data-thread-id')!, 10);
+    const card = threadElements.get(threadId);
+    if (card) flashComment(card);
+  }
+
+  container.addEventListener('click', onContentClick);
+
+  // ---------------------------------------------------------------------------
+  // Selection → comment button
+  // ---------------------------------------------------------------------------
+
   function onMouseUp(): void {
-    // Defer slightly so the selection has settled after click
     setTimeout(() => {
-      const result = analyzeSelection(
-        container,
-        lineRanges,
-        commentableLines
-      );
+      const result = analyzeSelection(container, lineRanges, commentableLines);
       if (!result) {
         currentSelection = null;
         hideButton(commentButton);
         return;
       }
       currentSelection = result;
-      // Button is always enabled now — selections outside the diff fall back
-      // to a file-level comment via subject_type: "file" (the GitHub REST
-      // API still rejects line comments outside the diff, but file-level
-      // comments are accepted everywhere).
       commentButton.classList.remove('disabled');
       const isLineLevel = result.allCommentable;
       commentButton.title = isLineLevel
         ? 'Comment on this line'
-        : 'Comment on this file (selected text was not changed in the PR — will be posted as a file-level comment)';
-      commentButton.textContent = isLineLevel
-        ? 'Comment'
-        : 'Comment on file';
+        : 'Comment on this file';
+      commentButton.textContent = isLineLevel ? 'Comment' : 'Comment on file';
       positionCommentButton(commentButton, result.rect);
     }, 0);
   }
@@ -287,9 +319,11 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     }
   }
 
-  /** Post a line-anchored comment on a selection inside the diff. */
+  // ---------------------------------------------------------------------------
+  // Submit comments
+  // ---------------------------------------------------------------------------
+
   function submitLineComment(sel: SelectionResult): void {
-    // Anchor the form below the last element in the selection
     const anchorEl = [...lineRanges]
       .reverse()
       .find(
@@ -301,7 +335,8 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
 
     if (!anchorEl) return;
 
-    const wrapper = ensureThreadContainer(anchorEl);
+    // Show form in the right sidebar, aligned with the anchor
+    const target = inlineCommentsContainer ?? container;
     const form = createCommentForm({
       selectedText: sel.selectedText,
       placeholder: 'Leave a comment on this section',
@@ -329,32 +364,31 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
         currentSelection = null;
         window.getSelection()?.removeAllRanges();
       },
-      onCancel: () => {
-        form.remove();
-      },
+      onCancel: () => form.remove(),
     });
-    wrapper.appendChild(form);
+
+    if (inlineCommentsContainer) {
+      const anchorRect = anchorEl.getBoundingClientRect();
+      const containerRect = container.getBoundingClientRect();
+      const offsetTop = anchorRect.top - containerRect.top + container.scrollTop;
+      form.style.position = 'absolute';
+      form.style.top = `${offsetTop}px`;
+      form.style.left = '20px';
+      form.style.right = '20px';
+      inlineCommentsContainer.appendChild(form);
+    } else {
+      anchorEl.insertAdjacentElement('afterend', form);
+    }
   }
 
-  /**
-   * Post a file-level comment for a selection outside the diff hunks.
-   * The selected text is preserved as a blockquote in the comment body so
-   * reviewers can still see what the comment is about.
-   */
   function submitFileComment(sel: SelectionResult): void {
     const target = fileCommentsContainer ?? container;
     const form = createCommentForm({
       selectedText: sel.selectedText,
-      placeholder:
-        'Leave a file-level comment (this section was not changed in the PR)',
+      placeholder: 'Leave a file-level comment',
       onSubmit: async (body) => {
         const comment = await postComment({
-          owner,
-          repo,
-          pull_number: pull,
-          body,
-          commit_id,
-          path,
+          owner, repo, pull_number: pull, body, commit_id, path,
           subject_type: 'file',
         });
         form.remove();
@@ -362,30 +396,24 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
         currentSelection = null;
         window.getSelection()?.removeAllRanges();
       },
-      onCancel: () => {
-        form.remove();
-      },
+      onCancel: () => form.remove(),
     });
     target.appendChild(form);
   }
 
-  function onDocumentMouseDown(e: MouseEvent): void {
-    // Hide the floating button if user clicks elsewhere without selecting
-    if (e.target !== commentButton) {
-      // Let the selection happen first; the mouseup handler decides what to do
-    }
-  }
+  // ---------------------------------------------------------------------------
+  // Lifecycle
+  // ---------------------------------------------------------------------------
 
   container.addEventListener('mouseup', onMouseUp);
   commentButton.addEventListener('click', onCommentButtonClick);
-  document.addEventListener('mousedown', onDocumentMouseDown);
 
   return {
     displayComments,
     destroy() {
       container.removeEventListener('mouseup', onMouseUp);
+      container.removeEventListener('click', onContentClick);
       commentButton.removeEventListener('click', onCommentButtonClick);
-      document.removeEventListener('mousedown', onDocumentMouseDown);
     },
   };
 }
