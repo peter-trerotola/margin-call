@@ -196,18 +196,96 @@ export async function fetchFileContent(
   return response.text();
 }
 
+/**
+ * Fetch the set of root comment IDs whose threads have been resolved.
+ * Uses the GraphQL API because the REST API doesn't expose resolution status.
+ */
+export async function fetchResolvedThreadRootIds(
+  owner: string,
+  repo: string,
+  pull: number
+): Promise<Set<number>> {
+  const token = await getToken();
+  if (!token) return new Set();
+
+  const query = `{
+    repository(owner: "${owner}", name: "${repo}") {
+      pullRequest(number: ${pull}) {
+        reviewThreads(first: 100) {
+          nodes {
+            isResolved
+            comments(first: 1) {
+              nodes { databaseId }
+            }
+          }
+        }
+      }
+    }
+  }`;
+
+  try {
+    const response = await fetch('https://api.github.com/graphql', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    if (!response.ok) return new Set();
+
+    const data = (await response.json()) as {
+      data?: {
+        repository?: {
+          pullRequest?: {
+            reviewThreads?: {
+              nodes?: Array<{
+                isResolved: boolean;
+                comments: { nodes: Array<{ databaseId: number }> };
+              }>;
+            };
+          };
+        };
+      };
+    };
+
+    const threads =
+      data.data?.repository?.pullRequest?.reviewThreads?.nodes ?? [];
+    const resolvedIds = new Set<number>();
+    for (const thread of threads) {
+      if (thread.isResolved && thread.comments.nodes.length > 0) {
+        resolvedIds.add(thread.comments.nodes[0].databaseId);
+      }
+    }
+    return resolvedIds;
+  } catch {
+    return new Set();
+  }
+}
+
 export async function fetchPrComments(
   owner: string,
   repo: string,
   pull: number,
   filePath?: string
 ): Promise<ReviewComment[]> {
-  const comments = await apiFetchAll<ReviewComment>(
-    `/repos/${owner}/${repo}/pulls/${pull}/comments?per_page=100`
-  );
+  const [comments, resolvedIds] = await Promise.all([
+    apiFetchAll<ReviewComment>(
+      `/repos/${owner}/${repo}/pulls/${pull}/comments?per_page=100`
+    ),
+    fetchResolvedThreadRootIds(owner, repo, pull),
+  ]);
+
+  // Filter out resolved threads (root + all replies)
+  const filtered = resolvedIds.size > 0
+    ? comments.filter(
+        (c) => !resolvedIds.has(c.id) && !resolvedIds.has(c.in_reply_to_id ?? -1)
+      )
+    : comments;
 
   if (filePath) {
-    return comments.filter((c) => c.path === filePath);
+    return filtered.filter((c) => c.path === filePath);
   }
   return comments;
 }
