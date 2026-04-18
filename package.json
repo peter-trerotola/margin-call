@@ -1,6 +1,6 @@
 {
   "name": "margin-call",
-  "version": "1.0.1",
+  "version": "1.2.0",
   "description": "Comment on rendered markdown previews in GitHub PRs",
   "private": true,
   "type": "module",
