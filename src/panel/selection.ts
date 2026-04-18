@@ -45,7 +45,7 @@ export function analyzeSelection(
   }
 
   // Find all line-range elements that intersect the selection
-  const intersecting: LineRange[] = [];
+  let intersecting: LineRange[] = [];
   for (const lr of lineRanges) {
     if (range.intersectsNode(lr.element)) {
       intersecting.push(lr);
@@ -53,6 +53,19 @@ export function analyzeSelection(
   }
 
   if (intersecting.length === 0) return null;
+
+  // Keep only the MOST SPECIFIC (deepest) elements. If both a <table>
+  // and its child <tr> intersect the selection, drop the <table> — the
+  // user selected within a row, not the whole table.
+  intersecting = intersecting.filter(
+    (lr) =>
+      !intersecting.some(
+        (other) =>
+          other !== lr &&
+          lr.element !== other.element &&
+          lr.element.contains(other.element)
+      )
+  );
 
   const startLine = Math.min(...intersecting.map((lr) => lr.startLine));
   const endLine = Math.max(...intersecting.map((lr) => lr.endLine));

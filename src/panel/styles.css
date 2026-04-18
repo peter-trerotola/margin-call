@@ -412,6 +412,33 @@ body {
   background: none;
 }
 
+/* Table rows: suppress the negative-margin diff indicator (it breaks
+   table layout). Use a subtle background tint instead. */
+.markdown-body tr.mc-has-additions {
+  border-left: none;
+  margin-left: 0;
+  padding-left: 0;
+  background: var(--mc-success-tint);
+}
+
+.markdown-body tr.mc-commentable:not(.mc-has-additions) {
+  border-left: none;
+  margin-left: 0;
+  padding-left: 0;
+}
+
+/* Comment highlight on table rows */
+.markdown-body tr.mc-has-comment {
+  border-left: none !important;
+  margin-left: 0 !important;
+  padding-left: 0 !important;
+  background: var(--mc-highlight) !important;
+}
+
+.markdown-body tr.mc-has-comment:hover {
+  background: var(--mc-highlight-hover) !important;
+}
+
 /* Code blocks already have their own background + border from github-markdown-css.
    Don't let the diff indicator mess with their layout. */
 .markdown-body pre.mc-has-additions,
