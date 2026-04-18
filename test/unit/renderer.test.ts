@@ -310,3 +310,46 @@ describe('XSS protection (renderMarkdown)', () => {
     expect(html).toContain('data-source-line');
   });
 });
+
+describe('task list rendering', () => {
+  it('renders checked task items as checked checkboxes', () => {
+    const html = renderMarkdown('- [x] Done\n- [ ] Todo\n');
+    const doc = toDom(html);
+    const inputs = doc.querySelectorAll('input[type="checkbox"]');
+    expect(inputs.length).toBe(2);
+    expect((inputs[0] as HTMLInputElement).checked).toBe(true);
+    expect((inputs[1] as HTMLInputElement).checked).toBe(false);
+  });
+
+  it('renders task items with the task-list-item class', () => {
+    const html = renderMarkdown('- [x] A\n- [ ] B\n');
+    const doc = toDom(html);
+    const items = doc.querySelectorAll('.task-list-item');
+    expect(items.length).toBe(2);
+  });
+});
+
+describe('syntax highlighting', () => {
+  it('adds hljs classes to fenced code blocks with a known language', () => {
+    const html = renderMarkdown('```javascript\nconst x = 1;\n```\n');
+    const doc = toDom(html);
+    const code = doc.querySelector('code');
+    expect(code).not.toBeNull();
+    // highlight.js wraps tokens in <span class="hljs-...">
+    expect(code!.innerHTML).toContain('hljs-');
+  });
+
+  it('does not crash on unknown languages', () => {
+    const html = renderMarkdown('```somethingrandom\nfoo bar\n```\n');
+    expect(html).toContain('foo bar');
+  });
+
+  it('does not warn on mermaid language (registered as no-op)', () => {
+    // This would previously log "Could not find the language 'mermaid'"
+    const html = renderMarkdown('```mermaid\ngraph TD; A-->B\n```\n');
+    const doc = toDom(html);
+    const code = doc.querySelector('code');
+    expect(code).not.toBeNull();
+    expect(code!.classList.contains('language-mermaid')).toBe(true);
+  });
+});

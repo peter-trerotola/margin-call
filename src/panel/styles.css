@@ -1,12 +1,15 @@
 /*
  * Margin Call panel page styles.
  *
- * Theme tokens are defined as CSS variables and overridden via
- * prefers-color-scheme so the panel follows the user's system preference.
- * The bundled github-markdown.css already auto-switches its own theme,
- * so we only need to handle our own chrome (header, file path bar,
- * comment UI, diff highlights).
+ * Three-column Google Docs-style layout:
+ *   LEFT sidebar  — file-level comments
+ *   CENTER        — rendered markdown
+ *   RIGHT sidebar — inline (line-level) comments, aligned with anchor text
+ *
+ * Theme follows system preference via CSS variables + prefers-color-scheme.
  */
+
+/* -- Theme tokens -------------------------------------------------------- */
 
 :root {
   --mc-bg: #ffffff;
@@ -38,6 +41,9 @@
   --mc-comment-btn-bg: #0969da;
   --mc-comment-btn-bg-hover: #0860ca;
   --mc-comment-btn-disabled-bg: #8c959f;
+
+  --mc-highlight: rgba(255, 212, 59, 0.4);
+  --mc-highlight-hover: rgba(255, 212, 59, 0.55);
 
   --mc-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
@@ -74,21 +80,24 @@
     --mc-comment-btn-bg-hover: #388bfd;
     --mc-comment-btn-disabled-bg: #484f58;
 
+    --mc-highlight: rgba(255, 212, 59, 0.3);
+    --mc-highlight-hover: rgba(255, 212, 59, 0.45);
+
     --mc-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   }
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+/* -- Reset --------------------------------------------------------------- */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
   color: var(--mc-fg);
   background: var(--mc-bg);
 }
+
+/* -- Header -------------------------------------------------------------- */
 
 #header {
   display: flex;
@@ -99,11 +108,7 @@ body {
   background: var(--mc-bg-subtle);
 }
 
-#header h1 {
-  font-size: 16px;
-  font-weight: 600;
-  white-space: nowrap;
-}
+#header h1 { font-size: 16px; font-weight: 600; white-space: nowrap; }
 
 #pr-title {
   font-size: 14px;
@@ -120,6 +125,8 @@ body {
   text-decoration: none;
   white-space: nowrap;
 }
+
+/* -- File path + diff legend --------------------------------------------- */
 
 #file-path {
   display: flex;
@@ -149,61 +156,110 @@ body {
   border-radius: 4px;
 }
 
-.diff-stat.added {
-  color: var(--mc-success-fg);
-  background: var(--mc-success-bg);
+.diff-stat.added { color: var(--mc-success-fg); background: var(--mc-success-bg); }
+.diff-stat.removed { color: var(--mc-danger-fg); background: var(--mc-danger-bg); }
+.diff-hint { color: var(--mc-fg-muted); font-style: italic; }
+
+/* -- Layout: center content + right comment sidebar ---------------------- */
+
+.panel-layout {
+  display: grid;
+  /* Center column gets enough for the markdown body (860px + padding).
+     Right sidebar fills the rest of the viewport — on wide screens it's
+     generous, on narrow screens it shrinks gracefully. */
+  grid-template-columns: 1fr minmax(300px, 500px);
+  min-height: calc(100vh - 100px);
+  position: relative;
 }
 
-.diff-stat.removed {
-  color: var(--mc-danger-fg);
-  background: var(--mc-danger-bg);
+/* Left sidebar only appears when it has content (file-level comments) */
+.panel-layout:has(.sidebar-left:not([hidden])) {
+  grid-template-columns: 240px 1fr minmax(300px, 500px);
 }
 
-.diff-hint {
-  color: var(--mc-fg-muted);
-  font-style: italic;
+.panel-center {
+  min-width: 0;
+  border-right: 1px solid var(--mc-border);
 }
 
 .markdown-body {
-  max-width: 980px;
+  max-width: 860px;
   margin: 0 auto;
   padding: 32px;
   background: var(--mc-bg);
   color: var(--mc-fg);
 }
 
-@media (max-width: 767px) {
-  .markdown-body {
-    padding: 16px;
-  }
+@media (max-width: 1100px) {
+  .sidebar-left { display: none; }
+  .panel-layout:has(.sidebar-left:not([hidden])) { grid-template-columns: 1fr minmax(280px, 500px); }
 }
 
-/* File-level comments section (selections outside the diff land here) */
-.file-comments {
-  max-width: 980px;
-  margin: 16px auto 0;
-  padding: 16px 32px;
-  border: 1px solid var(--mc-border);
-  border-radius: 6px;
+@media (max-width: 800px) {
+  .panel-layout { grid-template-columns: 1fr; }
+  .sidebar-right { display: none; }
+  .panel-center { border: none; }
+  .markdown-body { padding: 16px; }
+}
+
+/* -- Sidebars ------------------------------------------------------------ */
+
+.sidebar {
+  padding: 12px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.sidebar-left {
   background: var(--mc-bg-subtle);
+  border-right: 1px solid var(--mc-border);
 }
 
-.file-comments-heading {
-  font-size: 14px;
+.sidebar-right {
+  background: var(--mc-bg);
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.sidebar-heading {
+  font-size: 11px;
   font-weight: 600;
   color: var(--mc-fg-muted);
-  margin-bottom: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  margin-bottom: 12px;
 }
 
-@media (max-width: 767px) {
-  .file-comments {
-    padding: 12px 16px;
-  }
+/* -- Sidebar comment cards (right sidebar) ------------------------------- */
+
+.sidebar-comment {
+  padding-bottom: 12px;
 }
 
-/* Mermaid diagrams */
+.sidebar-comment .comment-thread {
+  font-size: 13px;
+}
+
+/* -- Flash animation when clicking highlighted text ---------------------- */
+
+@keyframes mc-flash-pulse {
+  0% { box-shadow: 0 0 0 0 var(--mc-highlight-hover); }
+  50% { box-shadow: 0 0 0 4px var(--mc-highlight-hover); }
+  100% { box-shadow: 0 0 0 0 var(--mc-highlight-hover); }
+}
+
+.mc-flash {
+  animation: mc-flash-pulse 0.5s ease 3;
+  outline: 2px solid var(--mc-link);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* -- Mermaid diagrams ---------------------------------------------------- */
+
 .markdown-body .mermaid-diagram {
   margin: 16px 0;
   padding: 16px;
@@ -214,9 +270,98 @@ body {
   text-align: center;
 }
 
-.markdown-body .mermaid-diagram svg {
-  max-width: 100%;
-  height: auto;
+.markdown-body .mermaid-svg-container {
+  overflow: auto;
+  transition: transform 0.2s ease;
+}
+
+.markdown-body .mermaid-diagram svg { max-width: 100%; height: auto; }
+
+.mermaid-toolbar {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.mermaid-toolbar button {
+  padding: 2px 10px;
+  font-size: 12px;
+  color: var(--mc-fg-muted);
+  background: var(--mc-bg);
+  border: 1px solid var(--mc-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mermaid-toolbar button:hover {
+  color: var(--mc-fg);
+  background: var(--mc-btn-secondary-bg-hover);
+}
+
+/* -- Mermaid lightbox (fullscreen overlay) -------------------------------- */
+
+.mermaid-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  background: rgba(0, 0, 0, 0.85);
+  display: flex;
+  flex-direction: column;
+  animation: mc-lightbox-in 0.15s ease;
+}
+
+@keyframes mc-lightbox-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.mermaid-lightbox-topbar {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mermaid-lightbox-topbar button {
+  padding: 6px 16px;
+  font-size: 13px;
+  color: #e6edf3;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mermaid-lightbox-topbar button:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.mermaid-lightbox-close {
+  margin-left: 12px;
+  background: rgba(248, 81, 73, 0.3) !important;
+  border-color: rgba(248, 81, 73, 0.4) !important;
+}
+
+.mermaid-lightbox-close:hover {
+  background: rgba(248, 81, 73, 0.5) !important;
+}
+
+.mermaid-lightbox-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  padding: 32px;
+}
+
+.mermaid-lightbox-body svg {
+  max-width: 90vw;
+  max-height: 80vh;
+  transition: transform 0.15s ease;
 }
 
 .markdown-body .mermaid-diagram.mermaid-error {
@@ -238,45 +383,84 @@ body {
   margin: 0 0 8px;
 }
 
-/* Diff visualization on rendered markdown */
+/* -- Diff visualization -------------------------------------------------- */
+
 .markdown-body .mc-has-additions {
   position: relative;
-  padding-left: 12px;
+  margin-left: -32px;
+  padding-left: 28px;
   border-left: 3px solid var(--mc-success-border);
-  background: linear-gradient(
-    to right,
-    var(--mc-success-tint),
-    transparent 60%
-  );
+  background: linear-gradient(to right, var(--mc-success-tint), transparent 60%);
   border-radius: 0 4px 4px 0;
 }
 
 .markdown-body .mc-commentable:not(.mc-has-additions) {
   position: relative;
-  padding-left: 12px;
+  margin-left: -32px;
+  padding-left: 28px;
   border-left: 3px solid var(--mc-success-tint-soft);
   border-radius: 0 4px 4px 0;
 }
 
-.markdown-body .mc-commentable {
-  cursor: text;
-}
+.markdown-body .mc-commentable { cursor: text; }
 
-/*
- * Suppress the diff indicator on individual <li> elements — the list
- * marker (1., 2., •) is rendered at the LI's left edge and the green
- * vertical border cuts straight through it. The parent <ol>/<ul> still
- * carries the indicator for the whole block, and per-line commentability
- * is unaffected (data-source-line attributes remain on each LI).
- */
 .markdown-body li.mc-has-additions,
 .markdown-body li.mc-commentable {
   border-left: none;
   padding-left: 0;
+  margin-left: 0;
   background: none;
 }
 
-/* Comment UI */
+/* Code blocks already have their own background + border from github-markdown-css.
+   Don't let the diff indicator mess with their layout. */
+.markdown-body pre.mc-has-additions,
+.markdown-body pre.mc-commentable {
+  margin-left: 0;
+  padding-left: 16px;
+  border-left: 3px solid var(--mc-success-border);
+  border-radius: 6px;
+}
+
+/* Blockquotes: keep the native left border from github-markdown-css.
+   When also marked as a diff addition, use green instead of the default gray. */
+.markdown-body blockquote {
+  border-left: 4px solid var(--mc-border);
+  padding-left: 16px;
+  color: var(--mc-fg-muted);
+}
+
+.markdown-body blockquote.mc-has-additions {
+  border-left-color: var(--mc-success-border);
+  margin-left: 0;
+  padding-left: 16px;
+}
+
+.markdown-body blockquote.mc-commentable:not(.mc-has-additions) {
+  margin-left: 0;
+  padding-left: 16px;
+}
+
+/* -- Comment highlight on anchor text ------------------------------------ */
+/* MUST come after diff visualization so yellow overrides green on
+   elements that are both "added" and "has comment". */
+
+.markdown-body .mc-has-comment {
+  background: var(--mc-highlight) !important;
+  margin-left: -20px !important;
+  padding-left: 16px !important;
+  border-left: 3px solid rgba(255, 212, 59, 0.7) !important;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  border-radius: 0 4px 4px 0;
+}
+
+.markdown-body .mc-has-comment:hover {
+  background: var(--mc-highlight-hover) !important;
+}
+
+/* -- Floating comment button --------------------------------------------- */
+
 .comment-float-btn {
   position: fixed;
   padding: 4px 12px;
@@ -291,18 +475,13 @@ body {
   box-shadow: var(--mc-shadow);
 }
 
-.comment-float-btn:hover {
-  background: var(--mc-comment-btn-bg-hover);
-}
+.comment-float-btn:hover { background: var(--mc-comment-btn-bg-hover); }
+.comment-float-btn.disabled { background: var(--mc-comment-btn-disabled-bg); cursor: not-allowed; }
 
-.comment-float-btn.disabled {
-  background: var(--mc-comment-btn-disabled-bg);
-  cursor: not-allowed;
-}
+/* -- Comment form -------------------------------------------------------- */
 
-/* Comment form */
 .comment-form {
-  margin: 12px 0;
+  margin: 8px 0;
   padding: 12px;
   background: var(--mc-bg-subtle);
   border: 1px solid var(--mc-border);
@@ -311,7 +490,7 @@ body {
 
 .comment-form textarea {
   width: 100%;
-  min-height: 80px;
+  min-height: 60px;
   padding: 8px;
   font-size: 13px;
   font-family: inherit;
@@ -340,9 +519,7 @@ body {
   cursor: pointer;
 }
 
-.comment-form .btn-submit:hover {
-  background: var(--mc-btn-primary-bg-hover);
-}
+.comment-form .btn-submit:hover { background: var(--mc-btn-primary-bg-hover); }
 
 .comment-form .btn-cancel {
   padding: 5px 16px;
@@ -354,17 +531,17 @@ body {
   cursor: pointer;
 }
 
-.comment-form .btn-cancel:hover {
-  background: var(--mc-btn-secondary-bg-hover);
-}
+.comment-form .btn-cancel:hover { background: var(--mc-btn-secondary-bg-hover); }
 
-/* Comment cards */
+/* -- Comment cards ------------------------------------------------------- */
+
 .comment-thread {
-  margin: 8px 0;
+  margin: 0 0 8px;
   border: 1px solid var(--mc-border);
   border-radius: 6px;
   overflow: hidden;
   background: var(--mc-bg);
+  transition: box-shadow 0.3s ease;
 }
 
 .comment-card {
@@ -372,9 +549,7 @@ body {
   border-bottom: 1px solid var(--mc-border);
 }
 
-.comment-card:last-child {
-  border-bottom: none;
-}
+.comment-card:last-child { border-bottom: none; }
 
 .comment-header {
   display: flex;
@@ -383,21 +558,9 @@ body {
   margin-bottom: 4px;
 }
 
-.comment-avatar {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-}
-
-.comment-author {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.comment-date {
-  font-size: 12px;
-  color: var(--mc-fg-muted);
-}
+.comment-avatar { width: 20px; height: 20px; border-radius: 50%; }
+.comment-author { font-size: 13px; font-weight: 600; }
+.comment-date { font-size: 12px; color: var(--mc-fg-muted); }
 
 .comment-body {
   font-size: 13px;
@@ -417,18 +580,16 @@ body {
   cursor: pointer;
 }
 
-.reply-btn:hover {
-  background: var(--mc-btn-secondary-bg-hover);
-}
+.reply-btn:hover { background: var(--mc-btn-secondary-bg-hover); }
 
-/* Error state */
+/* -- Error / loading states ---------------------------------------------- */
+
 .error-state {
   padding: 24px;
   text-align: center;
   color: var(--mc-danger-fg);
 }
 
-/* Loading */
 .loading {
   padding: 24px;
   text-align: center;

@@ -1,5 +1,15 @@
 import MarkdownIt from 'markdown-it';
+import taskLists from 'markdown-it-task-lists';
+import highlightjs from 'markdown-it-highlightjs';
+import hljs from 'highlight.js';
 import DOMPurify from 'dompurify';
+
+// Register a no-op language so highlight.js doesn't warn about mermaid blocks.
+// These blocks are handled by our mermaid renderer after markdown rendering.
+hljs.registerLanguage('mermaid', () => ({
+  name: 'mermaid',
+  contains: [],
+}));
 
 export interface LineRange {
   element: Element;
@@ -111,6 +121,8 @@ export function createRenderer(): MarkdownIt {
     typographer: true,
   });
   md.use(sourceMapPlugin);
+  md.use(taskLists, { enabled: true, label: true });
+  md.use(highlightjs, { inline: true, hljs });
   return md;
 }
 
@@ -131,7 +143,11 @@ export function renderMarkdown(source: string): string {
   const md = createRenderer();
   const rawHtml = md.render(source);
   return DOMPurify.sanitize(rawHtml, {
-    ADD_ATTR: ['data-source-line', 'data-source-line-end', 'target'],
+    ADD_TAGS: ['input'],
+    ADD_ATTR: [
+      'data-source-line', 'data-source-line-end', 'target',
+      'checked', 'disabled', 'type', 'class',
+    ],
   });
 }
 

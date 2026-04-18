@@ -17,7 +17,10 @@
   "dependencies": {
     "dompurify": "3.4.0",
     "github-markdown-css": "5.9.0",
+    "highlight.js": "11.11.1",
     "markdown-it": "14.1.1",
+    "markdown-it-highlightjs": "4.3.0",
+    "markdown-it-task-lists": "2.1.1",
     "mermaid": "11.14.0"
   },
   "devDependencies": {
