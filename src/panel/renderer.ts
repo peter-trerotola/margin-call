@@ -34,6 +34,7 @@ function sourceMapPlugin(md: MarkdownIt): void {
     'ordered_list_open',
     'list_item_open',
     'table_open',
+    'tr_open',
   ];
 
   for (const type of openTokenTypes) {
