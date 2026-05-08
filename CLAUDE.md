@@ -1,6 +1,6 @@
 # Margin Call
 
-Chrome Extension (Manifest V3) for inline commenting on rendered markdown previews in GitHub PRs.
+Chrome and Firefox Extension (Manifest V3) for inline commenting on rendered markdown previews in GitHub PRs.
 
 ## Development
 
@@ -8,12 +8,16 @@ All tooling runs inside Docker. No Node.js/npm on the host.
 
 ```bash
 make docker-build   # Build container
-make build          # Compile extension → dist/
+make build          # Compile extension for all browsers -> dist/chrome/ + dist/firefox/
+make build-chrome   # Chrome only -> dist/chrome/
+make build-firefox  # Firefox only -> dist/firefox/
 make test           # Run unit + integration tests
 make test-coverage  # With coverage report
 make lint           # TypeScript type-check
 make shell          # Debug shell inside container
-make package        # Create margin-call.zip for Chrome Web Store
+make package        # Create .zip for Chrome Web Store + Firefox AMO
+make package-chrome # Chrome .zip only
+make package-firefox# Firefox .zip only
 ```
 
 ## Architecture
@@ -30,6 +34,8 @@ make package        # Create margin-call.zip for Chrome Web Store
   - `github-api.ts` — GitHub REST API client
 - `src/popup/` — Extension popup: sign in/out, device flow UI
 - `src/shared/` — Shared utilities (chrome.storage helpers)
+- `manifest.chrome.json` — Chrome-specific manifest (service_worker background)
+- `manifest.firefox.json` — Firefox-specific manifest (scripts-based background, gecko settings)
 - `test/` — vitest tests (unit, integration, e2e)
 
 ## Key Technical Details

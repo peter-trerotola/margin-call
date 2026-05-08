@@ -1,4 +1,4 @@
-.PHONY: docker-build install build test test-unit test-int test-e2e test-coverage lint clean package shell icons release
+.PHONY: docker-build install build build-chrome build-firefox build-all test test-unit test-int test-e2e test-coverage lint clean package package-chrome package-firefox shell icons release
 
 # Build the Docker image
 docker-build:
@@ -8,9 +8,17 @@ docker-build:
 install: docker-build
 	docker compose run --rm dev npm install
 
-# Build the extension (esbuild bundles to dist/)
-build:
+# Build the extension for all browsers (esbuild bundles to dist/<browser>/)
+build: build-all
+
+build-all:
 	docker compose run --rm dev npm run build
+
+build-chrome:
+	docker compose run --rm dev npm run build:chrome
+
+build-firefox:
+	docker compose run --rm dev npm run build:firefox
 
 # Run all unit + integration tests
 test:
@@ -36,19 +44,24 @@ test-coverage:
 lint:
 	docker compose run --rm dev npx tsc --noEmit
 
-# Package extension as .zip for Chrome Web Store
-package: build
-	docker compose run --rm dev sh -c 'cd dist && zip -r ../margin-call.zip .'
+# Package extensions as .zip for store submission
+package: package-chrome package-firefox
+
+package-chrome: build-chrome
+	docker compose run --rm dev sh -c 'cd dist/chrome && zip -r ../../margin-call-chrome.zip .'
+
+package-firefox: build-firefox
+	docker compose run --rm dev sh -c 'cd dist/firefox && zip -r ../../margin-call-firefox.zip .'
 
 # Remove build artifacts
 clean:
-	rm -rf dist margin-call.zip
+	rm -rf dist margin-call-chrome.zip margin-call-firefox.zip margin-call.zip
 
-# Render icons/icon.svg → icon16/48/128.png (uses Chromium in the dev container)
+# Render icons/icon.svg -> icon16/48/128.png (uses Chromium in the dev container)
 icons:
 	docker compose run --rm dev node scripts/render-icons.mjs
 
-# Cut a release: bump version in manifest.json + package.json, commit, tag.
+# Cut a release: bump version in manifest files + package.json, commit, tag.
 # Usage: make release VERSION=1.2.3
 # Then push: git push && git push origin v$(VERSION)
 release:
@@ -66,10 +79,11 @@ release:
 	fi
 	@echo "Bumping version to $(VERSION)..."
 	@docker compose run --rm dev sh -c "\
-	  node -e \"const f='manifest.json';const m=JSON.parse(require('fs').readFileSync(f));m.version='$(VERSION)';require('fs').writeFileSync(f,JSON.stringify(m,null,2)+'\n');\" && \
+	  node -e \"const f='manifest.chrome.json';const m=JSON.parse(require('fs').readFileSync(f));m.version='$(VERSION)';require('fs').writeFileSync(f,JSON.stringify(m,null,2)+'\n');\" && \
+	  node -e \"const f='manifest.firefox.json';const m=JSON.parse(require('fs').readFileSync(f));m.version='$(VERSION)';require('fs').writeFileSync(f,JSON.stringify(m,null,2)+'\n');\" && \
 	  node -e \"const f='package.json';const m=JSON.parse(require('fs').readFileSync(f));m.version='$(VERSION)';require('fs').writeFileSync(f,JSON.stringify(m,null,2)+'\n');\" \
 	"
-	@git add manifest.json package.json
+	@git add manifest.chrome.json manifest.firefox.json package.json
 	@git commit -m "chore: release $(VERSION)"
 	@git tag -a "v$(VERSION)" -m "Release $(VERSION)"
 	@echo ""

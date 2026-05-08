@@ -5,7 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs --target=all",
+    "build:chrome": "node esbuild.config.mjs --target=chrome",
+    "build:firefox": "node esbuild.config.mjs --target=firefox",
     "test": "vitest run",
     "test:unit": "vitest run test/unit",
     "test:int": "vitest run test/integration",
