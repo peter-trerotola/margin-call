@@ -157,6 +157,10 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
   // Map thread ID → sidebar element (for click-to-flash)
   const threadElements = new Map<number, HTMLElement>();
 
+  // Track the bottom edge of the last placed sidebar card to prevent overlap.
+  const CARD_GAP_PX = 8;
+  let sidebarNextTop = 0;
+
   // ---------------------------------------------------------------------------
   // Inline (line-level) comments → RIGHT sidebar
   // ---------------------------------------------------------------------------
@@ -173,18 +177,21 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     card.setAttribute('data-thread-id', String(thread.root.id));
     card.innerHTML = renderThread(thread);
 
-    // Position: align top of card with top of anchor element.
-    // Uses a data attribute; CSS uses position:relative on the sidebar
-    // and absolute on each card, with `top` set dynamically.
+    // Position: align top of card with top of anchor element, but push
+    // down if it would overlap a previously placed card.
     const anchorRect = anchor.getBoundingClientRect();
     const containerRect = container.getBoundingClientRect();
-    const offsetTop = anchorRect.top - containerRect.top + container.scrollTop;
+    const naturalTop = anchorRect.top - containerRect.top + container.scrollTop;
+    const offsetTop = Math.max(naturalTop, sidebarNextTop);
     card.style.position = 'absolute';
     card.style.top = `${offsetTop}px`;
     card.style.left = '20px';
     card.style.right = '20px';
 
     inlineCommentsContainer.appendChild(card);
+
+    // Update sidebarNextTop after the card is in the DOM so we can measure it.
+    sidebarNextTop = offsetTop + card.offsetHeight + CARD_GAP_PX;
     threadElements.set(thread.root.id, card);
 
     // Highlight the anchor text
@@ -370,7 +377,8 @@ export function setupReviewUI(ctx: ReviewUIContext): ReviewUI {
     if (inlineCommentsContainer) {
       const anchorRect = anchorEl.getBoundingClientRect();
       const containerRect = container.getBoundingClientRect();
-      const offsetTop = anchorRect.top - containerRect.top + container.scrollTop;
+      const naturalTop = anchorRect.top - containerRect.top + container.scrollTop;
+      const offsetTop = Math.max(naturalTop, sidebarNextTop);
       form.style.position = 'absolute';
       form.style.top = `${offsetTop}px`;
       form.style.left = '20px';
